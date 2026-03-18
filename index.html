@@ -354,15 +354,15 @@ function ReportTable({ data, onDataChange }) {
     ? delivered + data.bounces.total
     : data.totalSent;
 
-  // 오픈하지 않은 고객 = 총 전송 성공 건수 - 유니크 오픈
-  const calcDidNotOpen = (delivered != null && uniqueOpens != null)
-    ? delivered - uniqueOpens
-    : data.didNotOpen;
+  // 오픈하지 않은 고객 = 수동 수정값 우선, 없으면 총 전송 성공 - 유니크 오픈
+  const calcDidNotOpen = data.didNotOpen != null
+    ? data.didNotOpen
+    : (delivered != null && uniqueOpens != null ? delivered - uniqueOpens : null);
 
-  // 클릭하지 않은 고객 = 총 전송 성공 건수 - 유니크 클릭
-  const calcDidNotClick = (delivered != null && uniqueClicks != null)
-    ? delivered - uniqueClicks
-    : data.didNotClick;
+  // 클릭하지 않은 고객 = 수동 수정값 우선, 없으면 총 전송 성공 - 유니크 클릭
+  const calcDidNotClick = data.didNotClick != null
+    ? data.didNotClick
+    : (delivered != null && uniqueClicks != null ? delivered - uniqueClicks : null);
 
   const bounceRate = calcRate(data.bounces?.total, calcTotalSent);
   const hardRate   = calcRate(data.bounces?.hard,  data.bounces?.total);
@@ -491,14 +491,22 @@ function ReportTable({ data, onDataChange }) {
           <tr>
             <Cat rowSpan={2} secTop>미참여</Cat>
             <Lbl secTop>오픈하지 않은 고객 (Did Not Open)</Lbl>
-            <EN value={null} onSave={() => {}} faint secTop />
-            <Num n={calcDidNotOpen} bold secTop />
+            <EN value={data.didNotOpen} secTop onSave={v => update("didNotOpen", v)} />
+            <EN value={calcDidNotOpen} bold secTop onSave={v => {
+              // 고유 수 직접 수정 시 → opens.unique를 역산 (delivered - 입력값)
+              if (delivered != null && v != null) update("opens.unique", delivered - v);
+              else update("didNotOpen", v);
+            }} />
             <Rate rate={calcRate(calcDidNotOpen, delivered)} secTop />
           </tr>
           <tr>
             <Lbl>클릭하지 않은 고객 (Did Not Click)</Lbl>
-            <EN value={null} onSave={() => {}} faint />
-            <Num n={calcDidNotClick} bold />
+            <EN value={data.didNotClick} onSave={v => update("didNotClick", v)} />
+            <EN value={calcDidNotClick} bold onSave={v => {
+              // 고유 수 직접 수정 시 → clicks.unique를 역산 (delivered - 입력값)
+              if (delivered != null && v != null) update("clicks.unique", delivered - v);
+              else update("didNotClick", v);
+            }} />
             <Rate rate={calcRate(calcDidNotClick, delivered)} />
           </tr>
 
