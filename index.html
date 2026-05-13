@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>이메일 발송 분석 리포트</title>
+  <title>GP 리포트 분석기</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -15,7 +15,47 @@
     *, *::before, *::after { box-sizing: border-box; }
     body { margin: 0; background: #F2F4F6; font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; }
 
-    /* 기존 테이블 스타일 */
+    /* ── 탭 ── */
+    .tab-bar {
+      display: flex; gap: 0; background: #fff;
+      border-bottom: 2px solid #E5E8EC;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .tab-logo {
+      display: flex; align-items: center; padding: 0 20px;
+      font-size: 14px; font-weight: 800; color: #333D4B;
+      border-right: 1.5px solid #E5E8EC; white-space: nowrap;
+      letter-spacing: -0.02em;
+    }
+    .tab-btn {
+      position: relative; padding: 16px 22px;
+      font-size: 13px; font-weight: 600; color: #8B95A1;
+      background: none; border: none; cursor: pointer;
+      font-family: inherit; white-space: nowrap;
+      transition: color 0.15s;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .tab-btn:hover { color: #333D4B; }
+    .tab-btn.active { color: #333D4B; }
+    .tab-btn.active::after {
+      content: ""; position: absolute; bottom: -2px; left: 0; right: 0;
+      height: 2px; background: #333D4B; border-radius: 2px 2px 0 0;
+    }
+    .tab-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #E5E8EC; flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .tab-btn.active .tab-dot { background: #22C55E; }
+    .tab-btn.has-data .tab-dot { background: #22C55E; }
+    .tab-badge {
+      font-size: 10px; font-weight: 800; color: #fff;
+      background: #4F46E5; border-radius: 100px;
+      padding: 1px 6px; line-height: 1.6;
+    }
+
+    /* ── 기존 테이블 스타일 ── */
     .rtable { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .rtable th {
       background: #F9FAFB; padding: 13px 16px; font-size: 12px;
@@ -43,7 +83,6 @@
     .faint   { color: #C4C9D0 !important; }
     .bold    { font-weight: 700; }
 
-    /* 버튼 */
     .retry-btn {
       background: #fff; border: 1px solid #E5E8EC; border-radius: 10px;
       padding: 7px 16px; font-size: 12px; font-weight: 600; color: #333D4B;
@@ -51,7 +90,6 @@
     }
     .retry-btn:hover { background: #F9FAFB; }
 
-    /* 편집 가능 셀 hover */
     .td-editable:hover { background: #F5F7FA !important; cursor: text; }
     .td-editable:hover input { background: #F5F7FA !important; }
 
@@ -65,7 +103,6 @@
       white-space: pre-wrap; max-height: 120px; overflow-y: auto;
     }
 
-    /* 슬롯 카드 */
     .slot-card {
       flex: 1; min-width: 0; background: #fff; border-radius: 16px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden;
@@ -76,8 +113,6 @@
       padding: 14px 14px 10px; flex: 1;
       display: flex; flex-direction: column; gap: 6px;
     }
-
-    /* 추가 카드 및 빈 자리 */
     .add-slot-card {
       flex: 1; min-width: 0; background: #F9FAFB;
       border: 2px dashed #E5E8EC; border-radius: 16px;
@@ -92,7 +127,6 @@
       min-height: 130px;
     }
 
-    /* 합산 배지 */
     .sum-badge {
       display: inline-flex; align-items: center; gap: 5px;
       background: #EEF2FF; border: 1px solid #C7D2FE;
@@ -101,7 +135,6 @@
       margin-bottom: 14px;
     }
 
-    /* 텍스트 입력 영역 및 분석 버튼 */
     .paste-textarea {
       width: 100%; min-height: 200px; padding: 16px;
       border: 1.5px solid #E5E8EC; border-radius: 14px;
@@ -121,7 +154,6 @@
     .analyze-btn:active { transform: scale(0.97); }
     .analyze-btn:disabled { background: #C4C9D0; cursor: not-allowed; }
 
-    /* 모달 */
     .modal-overlay {
       position: fixed; inset: 0; z-index: 9999;
       background: rgba(242,244,246,0.92); backdrop-filter: blur(6px);
@@ -132,7 +164,6 @@
       box-shadow: 0 8px 40px rgba(0,0,0,0.14); width: 100%; max-width: 560px;
     }
 
-    /* 요약 표 스타일 */
     .summary-section { margin-bottom: 30px; }
     .summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .summary-title { font-size: 16px; font-weight: 800; color: #333D4B; }
@@ -147,11 +178,28 @@
     .stable td { padding: 10px; font-size: 12px; color: #333D4B; border: 1px solid #F2F4F6; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .bg-light { background: #FAFAFA; font-weight: 600; }
 
-    /* CSV 멀티 태그 선택 및 합계행 스타일 */
     .bg-total { background: #F2F4F6; font-weight: 800; color: #4F46E5 !important; }
     .tag-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; background: #FAFAFA; border-radius: 10px; border: 1px solid #E5E8EC; margin-bottom: 16px; max-height: 120px; overflow-y: auto; }
     .tag-item { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; background: #fff; border: 1px solid #E5E8EC; font-size: 11px; cursor: pointer; transition: all 0.1s; }
     .tag-item.active { background: #333D4B; color: #fff; border-color: #333D4B; }
+
+    /* ── 탭 패널 전환 애니메이션 ── */
+    .tab-panel { animation: fadeSlide 0.18s ease; }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── 빈 상태 ── */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px 20px; text-align: center; gap: 12px;
+    }
+    .empty-icon {
+      width: 64px; height: 64px; background: #F2F4F6; border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -162,36 +210,78 @@
 const { useState, useEffect, useRef } = React;
 const MAX_SLOTS = 3;
 
-/* ─────────────────────── 공통 이미지 다운로드 함수 ─────────────────────── */
+/* ── 이미지 캡처 (고정 너비, 페이지 크기 무관) ── */
+const captureElement = (elementId, fixedWidth = 900) => {
+  return new Promise((resolve) => {
+    const el = document.getElementById(elementId);
+    if (!el) { resolve(null); return; }
+
+    // 원본 스타일 저장
+    const origWidth   = el.style.width;
+    const origMinW    = el.style.minWidth;
+    const origMaxW    = el.style.maxWidth;
+    const origPos     = el.style.position;
+    const origLeft    = el.style.left;
+    const origTop     = el.style.top;
+    const origZIndex  = el.style.zIndex;
+
+    // 고정 너비로 오프스크린 렌더
+    el.style.width    = fixedWidth + 'px';
+    el.style.minWidth = fixedWidth + 'px';
+    el.style.maxWidth = fixedWidth + 'px';
+    el.style.position = 'fixed';
+    el.style.left     = '-9999px';
+    el.style.top      = '0px';
+    el.style.zIndex   = '-1';
+
+    // 레이아웃 안정화 후 캡처
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.html2canvas(el, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          width: fixedWidth,
+          windowWidth: fixedWidth,
+          useCORS: true,
+        }).then(canvas => {
+          // 원복
+          el.style.width    = origWidth;
+          el.style.minWidth = origMinW;
+          el.style.maxWidth = origMaxW;
+          el.style.position = origPos;
+          el.style.left     = origLeft;
+          el.style.top      = origTop;
+          el.style.zIndex   = origZIndex;
+          resolve(canvas);
+        });
+      });
+    });
+  });
+};
+
 const downloadImage = (elementId, filename) => {
-  const el = document.getElementById(elementId);
-  if (!el) return;
-  
-  window.html2canvas(el, { scale: 2, backgroundColor: "#ffffff" }).then(canvas => {
+  captureElement(elementId).then(canvas => {
+    if (!canvas) return;
     const link = document.createElement('a');
     link.download = filename + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
-
     canvas.toBlob(blob => {
       if (blob) {
         try {
           const item = new ClipboardItem({ 'image/png': blob });
           navigator.clipboard.write([item]).then(() => {
-            alert('이미지 저장 완료!, 클립보드에도 복사되었습니다!\n(Ctrl+V로 바로 붙여넣기 가능)');
-          }).catch(err => {
-            console.error('클립보드 에러:', err);
+            alert('이미지 저장 완료! 클립보드에도 복사되었습니다.\n(Ctrl+V로 바로 붙여넣기 가능)');
+          }).catch(() => {
             alert('이미지는 저장되었으나, 브라우저 권한 문제로 클립보드 복사는 실패했습니다.');
           });
-        } catch (err) {
-          console.error('Clipboard API 에러:', err);
-        }
+        } catch (err) { console.error(err); }
       }
     }, 'image/png');
   });
 };
 
-/* ─────────────────────── CSV 파서 ─────────────────────── */
+/* ── CSV 파서 ── */
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return null;
@@ -204,8 +294,8 @@ function parseCSV(text) {
     const row = {};
     headers.forEach((h, i) => {
       let val = matches[i] ? matches[i].replace(/"/g, '').trim() : '';
-      if (['successCount', 'validFailCount', 'readCount', 'button1', 'button2', 'image1'].includes(h)) {
-        val = parseInt(val.replace(/,/g, ''), 10) || 0;
+      if (['successCount','validFailCount','readCount','button1','button2','image1'].includes(h)) {
+        val = parseInt(val.replace(/,/g,''), 10) || 0;
       }
       row[h] = val;
     });
@@ -214,11 +304,11 @@ function parseCSV(text) {
   return { type: 'CSV', data, tags: [...new Set(data.map(d => d.groupTag))] };
 }
 
-/* ─────────────────────── 리포트 합산 ─────────────────────── */
+/* ── 리포트 합산 ── */
 function mergeReports(reports) {
   function sumNull(...vals) {
     const nums = vals.filter(v => v !== null && v !== undefined);
-    return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) : null;
+    return nums.length > 0 ? nums.reduce((a,b) => a+b, 0) : null;
   }
   return {
     publishedOn: reports.map(r => r.publishedOn).filter(Boolean).join(', '),
@@ -232,72 +322,44 @@ function mergeReports(reports) {
       soft:  sumNull(...reports.map(r => r.bounces?.soft)),
       block: sumNull(...reports.map(r => r.bounces?.block)),
     },
-    opens: {
-      total:  sumNull(...reports.map(r => r.opens?.total)),
-      unique: sumNull(...reports.map(r => r.opens?.unique)),
-    },
-    clicks: {
-      total:  sumNull(...reports.map(r => r.clicks?.total)),
-      unique: sumNull(...reports.map(r => r.clicks?.unique)),
-    },
-    conversions: {
-      total:  sumNull(...reports.map(r => r.conversions?.total)),
-      unique: sumNull(...reports.map(r => r.conversions?.unique)),
-    },
-    unsubscribes: {
-      total:  sumNull(...reports.map(r => r.unsubscribes?.total)),
-      unique: sumNull(...reports.map(r => r.unsubscribes?.unique)),
-    },
+    opens:   { total: sumNull(...reports.map(r => r.opens?.total)),  unique: sumNull(...reports.map(r => r.opens?.unique)) },
+    clicks:  { total: sumNull(...reports.map(r => r.clicks?.total)), unique: sumNull(...reports.map(r => r.clicks?.unique)) },
+    conversions:  { total: sumNull(...reports.map(r => r.conversions?.total)),  unique: sumNull(...reports.map(r => r.conversions?.unique)) },
+    unsubscribes: { total: sumNull(...reports.map(r => r.unsubscribes?.total)), unique: sumNull(...reports.map(r => r.unsubscribes?.unique)) },
     didNotOpen:  sumNull(...reports.map(r => r.didNotOpen)),
     didNotClick: sumNull(...reports.map(r => r.didNotClick)),
     conversionAmount: sumNull(...reports.map(r => r.conversionAmount)),
   };
 }
 
-/* ─────────────────────── 텍스트 파서 ─────────────────────── */
+/* ── 텍스트 파서 ── */
 function parseReport(rawText) {
   const t = rawText
-    .replace(/\r\n/g, '\n')
-    .replace(/[\u00a0]+/g, ' ')
-    .replace(/__([0-9,\s]+)__/g, (_, n) => n.trim())
-    .replace(/(\d)\s*,\s*(\d)/g, '$1,$2');
+    .replace(/\r\n/g,'\n').replace(/[\u00a0]+/g,' ')
+    .replace(/__([0-9,\s]+)__/g,(_,n)=>n.trim())
+    .replace(/(\d)\s*,\s*(\d)/g,'$1,$2');
 
   function num(str) {
     if (!str) return null;
-    const n = parseInt(str.replace(/,/g, '').replace(/\s/g, ''), 10);
+    const n = parseInt(str.replace(/,/g,'').replace(/\s/g,''),10);
     return isNaN(n) ? null : n;
   }
   function find(patterns) {
-    for (const pat of patterns) {
-      const m = t.match(pat);
-      if (m && m[1]) return m[1].trim();
-    }
+    for (const pat of patterns) { const m = t.match(pat); if (m&&m[1]) return m[1].trim(); }
     return null;
   }
   function findNum(patterns) { return num(find(patterns)); }
 
-  const campaignName = find([
-    /Name\s*:\s*([^\n]+)/i,
-    /AT\s+Enhanced[^\n]*/i,
-  ]) || '';
-
-  const publishedOn = find([
+  const campaignName = find([/Name\s*:\s*([^\n]+)/i, /AT\s+Enhanced[^\n]*/i]) || '';
+  const publishedOn  = find([
     /Last\s+Published\s+On\s*:\s*([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}[^\n]*)/i,
     /Published\s+On\s*:\s*([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}[^\n]*)/i,
     /Last\s+Published\s+On\s*:\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}[^\n]*)/i,
     /Published\s+On\s*:\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}[^\n]*)/i,
   ]) || '';
 
-  const totalSent = findNum([
-    /Total\s+Sent\s*:\s*([0-9,]+)/i,
-    /Total\s+Sent[^\d]+([0-9,]+)/i,
-  ]);
-
-  const delivered = findNum([
-    /Delivered\s*:\s*([0-9,]+)/i,
-    /Delivered\s+([0-9,]+)/i,
-  ]);
-
+  const totalSent  = findNum([/Total\s+Sent\s*:\s*([0-9,]+)/i, /Total\s+Sent[^\d]+([0-9,]+)/i]);
+  const delivered  = findNum([/Delivered\s*:\s*([0-9,]+)/i, /Delivered\s+([0-9,]+)/i]);
   const drMatch = t.match(/Delivery\s+Rate\s*:\s*([0-9.]+)%/i);
   const deliveryRate = drMatch ? parseFloat(drMatch[1]) : null;
 
@@ -308,27 +370,25 @@ function parseReport(rawText) {
 
   const totalOpensDirect  = findNum([/Total\s+Opens?\s*:\s*([0-9,]+)/i]);
   const uniqueOpensDirect = findNum([/Unique\s+Opens?\s*:\s*([0-9,]+)/i]);
-
-  let opensTotalInbox = null, opensUniqueInbox = null;
+  let opensTotalInbox=null, opensUniqueInbox=null;
   const openRowMatch = t.match(/Opens?\s+([0-9,]+)\s+([0-9,]+)/i);
-  if (openRowMatch) { opensTotalInbox = num(openRowMatch[1]); opensUniqueInbox = num(openRowMatch[2]); }
-
+  if (openRowMatch) { opensTotalInbox=num(openRowMatch[1]); opensUniqueInbox=num(openRowMatch[2]); }
   const opensTotal  = totalOpensDirect  ?? opensTotalInbox;
   const opensUnique = uniqueOpensDirect ?? opensUniqueInbox;
 
-  let clicksTotal = null, clicksUnique = null;
+  let clicksTotal=null, clicksUnique=null;
   const clickRowMatch = t.match(/Clicks?\s+([0-9,]+)\s+([0-9,]+)/i);
-  if (clickRowMatch) { clicksTotal = num(clickRowMatch[1]); clicksUnique = num(clickRowMatch[2]); }
+  if (clickRowMatch) { clicksTotal=num(clickRowMatch[1]); clicksUnique=num(clickRowMatch[2]); }
 
-  let convTotal = null, convUnique = null;
+  let convTotal=null, convUnique=null;
   const convRowMatch = t.match(/Conversions?\s+([0-9,]+)\s+([0-9,]+)/i);
-  if (convRowMatch) { convTotal = num(convRowMatch[1]); convUnique = num(convRowMatch[2]); }
-  const convSingleTotal  = findNum([/Total\s+Conversions?\s*:\s*([0-9,]+)/i]);
-  convTotal  = convTotal  ?? convSingleTotal;
+  if (convRowMatch) { convTotal=num(convRowMatch[1]); convUnique=num(convRowMatch[2]); }
+  const convSingleTotal = findNum([/Total\s+Conversions?\s*:\s*([0-9,]+)/i]);
+  convTotal = convTotal ?? convSingleTotal;
 
-  let unsubTotal = null, unsubUnique = null;
+  let unsubTotal=null, unsubUnique=null;
   const unsubRowMatch = t.match(/Unsubscribes?\s+[-–—]?\s*([0-9,]+)\s+([0-9,]+)/i);
-  if (unsubRowMatch) { unsubTotal = num(unsubRowMatch[1]); unsubUnique = num(unsubRowMatch[2]); }
+  if (unsubRowMatch) { unsubTotal=num(unsubRowMatch[1]); unsubUnique=num(unsubRowMatch[2]); }
   const unsubSingle = findNum([/Unsubscribes?\s+[-–—]\s*([0-9,]+)/i, /Unsubscribe[:\s]+([0-9,]+)/i]);
   unsubUnique = unsubUnique ?? unsubSingle;
 
@@ -336,43 +396,38 @@ function parseReport(rawText) {
   const didNotClick = findNum([/Did\s+not\s+click\s+([0-9,]+)/i, /not\s+click[:\s]+([0-9,]+)/i]);
 
   return {
-    campaignName, publishedOn,
-    totalSent, delivered, deliveryRate,
-    bounces: { total: bounceTotal, hard: bounceHard, soft: bounceSoft, block: bounceBlock },
-    opens:   { total: opensTotal,  unique: opensUnique },
-    clicks:  { total: clicksTotal, unique: clicksUnique },
-    conversions:  { total: convTotal,  unique: convUnique },
-    unsubscribes: { total: unsubTotal, unique: unsubUnique },
-    didNotOpen, didNotClick,
-    conversionAmount: null,
+    campaignName, publishedOn, totalSent, delivered, deliveryRate,
+    bounces: { total:bounceTotal, hard:bounceHard, soft:bounceSoft, block:bounceBlock },
+    opens:   { total:opensTotal,  unique:opensUnique },
+    clicks:  { total:clicksTotal, unique:clicksUnique },
+    conversions:  { total:convTotal,  unique:convUnique },
+    unsubscribes: { total:unsubTotal, unique:unsubUnique },
+    didNotOpen, didNotClick, conversionAmount: null,
   };
 }
 
-/* ─────────────────────── 유틸 ─────────────────────── */
+/* ── 유틸 ── */
 function toKoreanDate(raw) {
   if (!raw) return null;
   const DAYS = ["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
   const datePart = raw.trim().split(" ")[0];
-  
   if (datePart.includes("-")) {
     const parts = datePart.split("-").map(Number);
-    if (parts.length === 3 && !isNaN(parts[0])) {
+    if (parts.length===3 && !isNaN(parts[0])) {
       const dt = new Date(parts[0], parts[1]-1, parts[2]);
       return `${parts[0]}년 ${parts[1]}월 ${parts[2]}일 ${DAYS[dt.getDay()]}`;
     }
   }
-
   const parts = datePart.split("/").map(Number);
-  if (parts.length !== 3) return raw;
-  let d, m, y;
-  if (parts[2] > 1000) { [d, m, y] = parts; }
-  else { [m, d, y] = parts; }
+  if (parts.length!==3) return raw;
+  let d,m,y;
+  if (parts[2]>1000) { [d,m,y]=parts; } else { [m,d,y]=parts; }
   if (isNaN(d)||isNaN(m)||isNaN(y)) return raw;
-  const dt = new Date(y, m-1, d);
+  const dt = new Date(y,m-1,d);
   return `${y}년 ${m}월 ${d}일 ${DAYS[dt.getDay()]}`;
 }
 function fmt(n) {
-  if (n === null || n === undefined) return null;
+  if (n===null||n===undefined) return null;
   return n.toLocaleString("ko-KR");
 }
 function calcRate(num, den, decimals=2) {
@@ -380,124 +435,88 @@ function calcRate(num, den, decimals=2) {
   return ((num/den)*100).toFixed(decimals)+"%";
 }
 
-/* ─────────────────────── EditableNum ─────────────────────── */
+/* ── EditableNum ── */
 function EditableNum({ value, onSave, bold, faint, secTop }) {
   const [editing, setEditing] = React.useState(false);
   const [draft,   setDraft]   = React.useState("");
   const inputRef = useRef();
-
-  function startEdit() {
-    if(faint) return;
-    setDraft(value !== null && value !== undefined ? String(value) : "");
-    setEditing(true);
-  }
-  React.useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
-  function commit() {
-    const n = parseInt(draft.replace(/,/g,"").replace(/\s/g,""), 10);
-    onSave(isNaN(n) ? null : n);
-    setEditing(false);
-  }
+  function startEdit() { if(faint) return; setDraft(value!==null&&value!==undefined?String(value):""); setEditing(true); }
+  React.useEffect(() => { if(editing) inputRef.current?.select(); }, [editing]);
+  function commit() { const n=parseInt(draft.replace(/,/g,"").replace(/\s/g,""),10); onSave(isNaN(n)?null:n); setEditing(false); }
   const cls = `td-num td-editable${secTop?" sec-top":""}${bold?" bold":""}${faint?" faint":""}`;
-  
-  if (editing && !faint) {
+  if (editing&&!faint) {
     return (
       <td className={cls} style={{padding:"4px 8px"}}>
-        <input ref={inputRef} value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={e => { if(e.key==="Enter") commit(); if(e.key==="Escape") setEditing(false); }}
-          style={{ width:"100%", border:"none", borderBottom:"2px solid #333D4B",
-            outline:"none", background:"transparent", fontFamily:"inherit",
-            fontSize:"13px", fontWeight:bold?"700":"400", textAlign:"center",
-            fontVariantNumeric:"tabular-nums", color:"#333D4B" }} />
+        <input ref={inputRef} value={draft} onChange={e=>setDraft(e.target.value)} onBlur={commit}
+          onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")setEditing(false);}}
+          style={{width:"100%",border:"none",borderBottom:"2px solid #333D4B",outline:"none",background:"transparent",
+            fontFamily:"inherit",fontSize:"13px",fontWeight:bold?"700":"400",textAlign:"center",
+            fontVariantNumeric:"tabular-nums",color:"#333D4B"}} />
       </td>
     );
   }
   return (
-    <td className={cls} onClick={startEdit} style={{cursor: faint ? "default" : "text"}}>
-      {(value!==null&&value!==undefined) ? fmt(value) : <span className="faint">—</span>}
+    <td className={cls} onClick={startEdit} style={{cursor:faint?"default":"text"}}>
+      {(value!==null&&value!==undefined)?fmt(value):<span className="faint">—</span>}
     </td>
   );
 }
 
-/* ─────────────────────── EditableConvNote ─────────────────────── */
+/* ── EditableConvNote ── */
 function EditableConvNote({ value, onSave }) {
   const [editing, setEditing] = React.useState(false);
   const [draft,   setDraft]   = React.useState("");
   const inputRef = useRef();
-
-  function startEdit() {
-    setDraft(value !== null && value !== undefined ? String(value) : "");
-    setEditing(true);
-  }
-  React.useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  function startEdit() { setDraft(value!==null&&value!==undefined?String(value):""); setEditing(true); }
+  React.useEffect(() => { if(editing) inputRef.current?.select(); }, [editing]);
   function commit() {
     const raw = draft.replace(/,/g,"").replace(/\s/g,"").replace(/₩/g,"");
-    const n = parseInt(raw, 10);
-    onSave(isNaN(n) ? null : n);
-    setEditing(false);
+    const n = parseInt(raw,10); onSave(isNaN(n)?null:n); setEditing(false);
   }
-
   if (editing) {
     return (
       <td className="td-note td-editable" style={{verticalAlign:"middle"}}>
-        <div style={{fontSize:"12px", color:"#8B95A1", marginBottom:"5px"}}>고유 발송 수 대비</div>
-        <div style={{display:"flex", alignItems:"center", justifyContent:"center", gap:"2px"}}>
-          <span style={{fontSize:"12px", color:"#8B95A1", fontWeight:"700", flexShrink:0}}>₩</span>
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={e => { if(e.key==="Enter") commit(); if(e.key==="Escape") setEditing(false); }}
-            style={{
-              width:"88px", border:"none", borderBottom:"2px solid #333D4B",
-              outline:"none", background:"transparent", fontFamily:"inherit",
-              fontSize:"12px", textAlign:"center",
-              fontVariantNumeric:"tabular-nums", color:"#333D4B"
-            }}
-          />
+        <div style={{fontSize:"12px",color:"#8B95A1",marginBottom:"5px"}}>고유 발송 수 대비</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"2px"}}>
+          <span style={{fontSize:"12px",color:"#8B95A1",fontWeight:"700",flexShrink:0}}>₩</span>
+          <input ref={inputRef} value={draft} onChange={e=>setDraft(e.target.value)} onBlur={commit}
+            onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")setEditing(false);}}
+            style={{width:"88px",border:"none",borderBottom:"2px solid #333D4B",outline:"none",background:"transparent",
+              fontFamily:"inherit",fontSize:"12px",textAlign:"center",fontVariantNumeric:"tabular-nums",color:"#333D4B"}} />
         </div>
       </td>
     );
   }
-
   return (
     <td className="td-note td-editable" onClick={startEdit} style={{verticalAlign:"middle"}}>
-      <div style={{fontSize:"12px", color:"#8B95A1", marginBottom:"5px"}}>고유 발송 수 대비</div>
-      <div style={{
-        fontSize:"12px",
-        fontWeight: value != null ? "700" : "400",
-        color: value != null ? "#333D4B" : "#C4C9D0"
-      }}>
-        {value != null ? `₩ ${fmt(value)}` : "₩ —"}
+      <div style={{fontSize:"12px",color:"#8B95A1",marginBottom:"5px"}}>고유 발송 수 대비</div>
+      <div style={{fontSize:"12px",fontWeight:value!=null?"700":"400",color:value!=null?"#333D4B":"#C4C9D0"}}>
+        {value!=null?`₩ ${fmt(value)}`:"₩ —"}
       </div>
     </td>
   );
 }
 
-/* ─────────────────────── ReportTable ─────────────────────── */
+/* ── ReportTable ── */
 const DASH = <span className="faint">—</span>;
-
 function ReportTable({ data, onDataChange }) {
   const delivered    = data.delivered ?? data.totalSent;
   const uniqueOpens  = data.opens?.unique;
   const uniqueClicks = data.clicks?.unique;
-  const calcTotalSent   = (delivered!=null && data.bounces?.total!=null) ? delivered+data.bounces.total : data.totalSent;
-  const calcDidNotOpen  = data.didNotOpen!=null ? data.didNotOpen : (delivered!=null && uniqueOpens!=null ? delivered-uniqueOpens : null);
-  const calcDidNotClick = data.didNotClick!=null ? data.didNotClick : (delivered!=null && uniqueClicks!=null ? delivered-uniqueClicks : null);
+  const calcTotalSent   = (delivered!=null&&data.bounces?.total!=null)?delivered+data.bounces.total:data.totalSent;
+  const calcDidNotOpen  = data.didNotOpen!=null?data.didNotOpen:(delivered!=null&&uniqueOpens!=null?delivered-uniqueOpens:null);
+  const calcDidNotClick = data.didNotClick!=null?data.didNotClick:(delivered!=null&&uniqueClicks!=null?delivered-uniqueClicks:null);
+  const bounceRate=calcRate(data.bounces?.total,calcTotalSent);
+  const hardRate=calcRate(data.bounces?.hard,data.bounces?.total);
+  const blockRate=calcRate(data.bounces?.block,data.bounces?.total);
+  const softRate=calcRate(data.bounces?.soft,data.bounces?.total);
 
-  const bounceRate = calcRate(data.bounces?.total, calcTotalSent);
-  const hardRate   = calcRate(data.bounces?.hard,  data.bounces?.total);
-  const blockRate  = calcRate(data.bounces?.block, data.bounces?.total);
-  const softRate   = calcRate(data.bounces?.soft,  data.bounces?.total);
-
-  function update(path, val) {
-    const keys = path.split(".");
-    const next = JSON.parse(JSON.stringify(data));
-    let ref = next;
-    for (let i=0; i<keys.length-1; i++) ref = ref[keys[i]];
-    ref[keys[keys.length-1]] = val;
+  function update(path,val) {
+    const keys=path.split(".");
+    const next=JSON.parse(JSON.stringify(data));
+    let ref=next;
+    for(let i=0;i<keys.length-1;i++) ref=ref[keys[i]];
+    ref[keys[keys.length-1]]=val;
     onDataChange(next);
   }
 
@@ -506,7 +525,7 @@ function ReportTable({ data, onDataChange }) {
   const Num  = ({n,bold,faint,secTop}) => <td className={`td-num${secTop?" sec-top":""}${bold?" bold":""}${faint?" faint":""}`}>{(n!==null&&n!==undefined)?fmt(n):DASH}</td>;
   const Rate = ({rate,secTop}) => <td className={`td-rate${secTop?" sec-top":""}`} style={{color:rate?"#333D4B":"#C4C9D0"}}>{rate||"—"}</td>;
   const Note = ({children,rowSpan,secTop}) => <td rowSpan={rowSpan||1} className={`td-note${secTop?" sec-top":""}`}>{children||""}</td>;
-  const EN   = (props) => <EditableNum {...props} />;
+  const EN   = (props) => <EditableNum {...props}/>;
 
   return (
     <div style={{background:"#fff",borderRadius:"20px",overflow:"hidden",boxShadow:"0 2px 16px rgba(0,0,0,0.07)"}}>
@@ -548,12 +567,10 @@ function ReportTable({ data, onDataChange }) {
           ].map(({label,path,n,rate},i)=>(
             <tr key={i}>
               <Lbl indent>{label}</Lbl>
-              <EN value={n} onSave={v=>update(path,v)}/>
-              <EN value={null} onSave={()=>{}} faint/>
+              <EN value={n} onSave={v=>update(path,v)}/><EN value={null} onSave={()=>{}} faint/>
               <Rate rate={rate}/><Note/>
             </tr>
           ))}
-
           <tr>
             <Cat rowSpan={4} secTop>활동 지표</Cat>
             <Lbl secTop>오픈 (Opens)</Lbl>
@@ -572,18 +589,17 @@ function ReportTable({ data, onDataChange }) {
           <tr>
             <Lbl>전환 (Conversions)</Lbl>
             <EN value={null} onSave={()=>{}} faint/>
-            <EN value={data.conversions?.unique ?? data.conversions?.total} bold onSave={v=>update("conversions.unique",v)}/>
-            <Rate rate={calcRate(data.conversions?.unique??data.conversions?.total, delivered, 3)}/>
+            <EN value={data.conversions?.unique??data.conversions?.total} bold onSave={v=>update("conversions.unique",v)}/>
+            <Rate rate={calcRate(data.conversions?.unique??data.conversions?.total,delivered,3)}/>
             <EditableConvNote value={data.conversionAmount} onSave={v=>update("conversionAmount",v)}/>
           </tr>
           <tr>
             <Lbl>구독 취소 (Unsubscribes)</Lbl>
             <EN value={null} onSave={()=>{}} faint/>
             <EN value={data.unsubscribes?.unique} bold onSave={v=>update("unsubscribes.unique",v)}/>
-            <Rate rate={calcRate(data.unsubscribes?.unique, delivered, 3)}/>
+            <Rate rate={calcRate(data.unsubscribes?.unique,delivered,3)}/>
             <Note rowSpan={3}>고유 발송 수 대비</Note>
           </tr>
-
           <tr>
             <Cat rowSpan={2} secTop>미참여</Cat>
             <Lbl secTop>오픈하지 않은 고객 (Did Not Open)</Lbl>
@@ -609,265 +625,150 @@ function ReportTable({ data, onDataChange }) {
   );
 }
 
-/* ─────────────────────── SlotCard ─────────────────────── */
+/* ── SlotCard ── */
 function SlotCard({ slot, onRemove, showRaw, onToggleRaw, index }) {
   const d = slot.parsed;
   const dateStr = d?.publishedOn ? toKoreanDate(d.publishedOn) : null;
   const labelShort = d?.campaignName
-    ? (d.campaignName.length > 30 ? d.campaignName.slice(0, 30) + '…' : d.campaignName)
-    : `리포트 ${index + 1}`;
-
+    ? (d.campaignName.length>30?d.campaignName.slice(0,30)+'…':d.campaignName)
+    : `리포트 ${index+1}`;
   return (
     <div className="slot-card">
       <div className="slot-header">
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-            <div style={{ width:"20px", height:"20px", background:"#333D4B", borderRadius:"6px",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:"10px", fontWeight:"800", color:"#fff", flexShrink:0 }}>
-              {index + 1}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+            <div style={{width:"20px",height:"20px",background:"#333D4B",borderRadius:"6px",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:"10px",fontWeight:"800",color:"#fff",flexShrink:0}}>
+              {index+1}
             </div>
-            <span style={{ fontSize:"11px", color:"#22C55E", fontWeight:"700" }}>✓ 분석 완료</span>
+            <span style={{fontSize:"11px",color:"#22C55E",fontWeight:"700"}}>✓ 분석 완료</span>
           </div>
           <button onClick={onRemove} title="제거"
-            style={{ background:"#F2F4F6", border:"none", borderRadius:"6px",
-              width:"22px", height:"22px", cursor:"pointer", padding:0,
-              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
-              stroke="#8B95A1" strokeWidth="3.5" strokeLinecap="round">
+            style={{background:"#F2F4F6",border:"none",borderRadius:"6px",
+              width:"22px",height:"22px",cursor:"pointer",padding:0,
+              display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8B95A1" strokeWidth="3.5" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
         </div>
-        <div style={{ fontSize:"12px", fontWeight:"700", color:"#333D4B", lineHeight:1.4 }}>
-          {labelShort}
-        </div>
-        {dateStr && (
-          <div style={{ fontSize:"11px", color:"#8B95A1" }}>{dateStr}</div>
-        )}
-        {d?.totalSent && (
-          <div style={{ fontSize:"11px", color:"#B8BFC8" }}>
-            발송 <strong style={{color:"#333D4B"}}>{fmt(d.totalSent)}</strong>건
-          </div>
-        )}
-        <button className="raw-toggle" onClick={onToggleRaw}>
-          {showRaw ? "원문 닫기" : "붙여넣은 원문 확인"}
-        </button>
+        <div style={{fontSize:"12px",fontWeight:"700",color:"#333D4B",lineHeight:1.4}}>{labelShort}</div>
+        {dateStr && <div style={{fontSize:"11px",color:"#8B95A1"}}>{dateStr}</div>}
+        {d?.totalSent && <div style={{fontSize:"11px",color:"#B8BFC8"}}>발송 <strong style={{color:"#333D4B"}}>{fmt(d.totalSent)}</strong>건</div>}
+        <button className="raw-toggle" onClick={onToggleRaw}>{showRaw?"원문 닫기":"붙여넣은 원문 확인"}</button>
       </div>
-      {showRaw && slot.rawText && (
-        <div className="raw-box">{slot.rawText}</div>
-      )}
+      {showRaw && slot.rawText && <div className="raw-box">{slot.rawText}</div>}
     </div>
   );
 }
 
-/* ─────────────────────── PasteModal (Drag & Drop 추가) ─────────────────────── */
+/* ── PasteModal ── */
 function PasteModal({ onClose, onSubmit }) {
   const [text, setText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const taRef = useRef();
-
   useEffect(() => { taRef.current?.focus(); }, []);
 
-  function handleSubmit() {
-    if (!text.trim()) return;
-    onSubmit(text.trim());
-  }
-
-  function handleDragOver(e) {
-    e.preventDefault();
-    setIsDragging(true);
-  }
-
-  function handleDragLeave(e) {
-    e.preventDefault();
-    setIsDragging(false);
-  }
-
   function handleDrop(e) {
-    e.preventDefault();
-    setIsDragging(false);
+    e.preventDefault(); setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const fileText = event.target.result;
-      onSubmit(fileText.trim());
-    };
+    reader.onload = (ev) => { onSubmit(ev.target.result.trim()); };
     reader.readAsText(file);
   }
 
   return (
-    <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
-      <div 
-        className="modal-box"
-        style={{
-          border: isDragging ? "2px dashed #4F46E5" : "none",
-          backgroundColor: isDragging ? "#EEF2FF" : "#fff",
-          transition: "all 0.2s"
-        }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"18px" }}>
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-box"
+        style={{border:isDragging?"2px dashed #4F46E5":"none",backgroundColor:isDragging?"#EEF2FF":"#fff",transition:"all 0.2s"}}
+        onDragOver={e=>{e.preventDefault();setIsDragging(true);}}
+        onDragLeave={e=>{e.preventDefault();setIsDragging(false);}}
+        onDrop={handleDrop}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"18px"}}>
           <div>
-            <p style={{ margin:0, fontSize:"17px", fontWeight:"800", color:"#333D4B" }}>
-              데이터 붙여넣기 또는 파일 업로드
-            </p>
-            <p style={{ margin:"4px 0 0", fontSize:"13px", color:"#8B95A1" }}>
-              텍스트를 붙여넣거나, CSV 파일을 마우스로 끌어다 놓아주세요.
-            </p>
+            <p style={{margin:0,fontSize:"17px",fontWeight:"800",color:"#333D4B"}}>리포트 추가</p>
+            <p style={{margin:"4px 0 0",fontSize:"13px",color:"#8B95A1"}}>텍스트를 붙여넣거나 파일을 드래그 앤 드롭하세요.</p>
           </div>
-          <button onClick={onClose}
-            style={{ background:"#F2F4F6", border:"none", borderRadius:"8px",
-              width:"28px", height:"28px", cursor:"pointer", flexShrink:0,
-              display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-              stroke="#8B95A1" strokeWidth="3" strokeLinecap="round">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+          <button onClick={onClose} style={{background:"#F2F4F6",border:"none",borderRadius:"8px",width:"28px",height:"28px",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8B95A1" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
-        <textarea
-          ref={taRef}
-          className="paste-textarea"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder={"Ctrl+V 로 텍스트를 붙여넣거나, 여기에 CSV 파일을 드래그 앤 드롭 하세요.\n\n예시 (이메일):\nTotal Sent: 65,246\nDelivery Rate: 99.635%\n\n예시 (CSV):\ngroupTag,date,successCount,...\nAT,20260403,16,..."}
-          onKeyDown={e => {
-            if ((e.ctrlKey||e.metaKey) && e.key==="Enter") handleSubmit();
-          }}
-          style={{ backgroundColor: isDragging ? "#fff" : "#FAFAFA" }}
-        />
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:"14px" }}>
-          <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
-            <span style={{ fontSize:"11px", color:"#C4C9D0" }}>Ctrl+Enter로 바로 분석</span>
-          </div>
-          <div style={{ display:"flex", gap:"8px" }}>
-            <button className="retry-btn" onClick={onClose}>취소</button>
-            <button className="analyze-btn" onClick={handleSubmit} disabled={!text.trim()}>
-              분석하기
-            </button>
-          </div>
+        <textarea ref={taRef} className="paste-textarea" value={text} onChange={e=>setText(e.target.value)}
+          placeholder={"Ctrl+V로 텍스트를 붙여넣으세요.\n\n예시:\nTotal Sent: 65,246\nDelivery Rate: 99.635%"}
+          onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&text.trim())onSubmit(text.trim());}}
+          style={{backgroundColor:isDragging?"#fff":"#FAFAFA"}}/>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"14px"}}>
+          <button className="retry-btn" onClick={onClose}>취소</button>
+          <button className="analyze-btn" onClick={()=>{if(text.trim())onSubmit(text.trim());}} disabled={!text.trim()}>분석하기</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────── CSV 테이블 컴포넌트 ─────────────────────── */
+/* ── CSVTable ── */
 function CSVTable({ id, title, data, tags, selectedTags, onTagToggle, onResetTags }) {
   const filteredData = data.filter(d => selectedTags.includes(d.groupTag));
-
   const aggregated = filteredData.reduce((acc, curr) => {
-    if (!acc[curr.date]) acc[curr.date] = { s:0, f:0, r:0, b1:0, b2:0 };
-    acc[curr.date].s  += curr.successCount;
-    acc[curr.date].f  += curr.validFailCount;
-    acc[curr.date].r  += curr.readCount;
-    acc[curr.date].b1 += curr.button1;
-    acc[curr.date].b2 += (curr.button2 || 0);
+    if (!acc[curr.date]) acc[curr.date]={s:0,f:0,r:0,b1:0,b2:0};
+    acc[curr.date].s+=curr.successCount; acc[curr.date].f+=curr.validFailCount;
+    acc[curr.date].r+=curr.readCount; acc[curr.date].b1+=curr.button1;
+    acc[curr.date].b2+=(curr.button2||0);
     return acc;
   }, {});
-
-  const rows = Object.entries(aggregated).sort((a,b) => b[0] - a[0]);
-
-  const totals = rows.reduce((acc, [_, vals]) => {
-    acc.s  += vals.s;
-    acc.f  += vals.f;
-    acc.r  += vals.r;
-    acc.b1 += vals.b1;
-    acc.b2 += vals.b2;
-    return acc;
-  }, { s:0, f:0, r:0, b1:0, b2:0 });
+  const rows = Object.entries(aggregated).sort((a,b)=>b[0]-a[0]);
+  const totals = rows.reduce((acc,[_,vals])=>{
+    acc.s+=vals.s; acc.f+=vals.f; acc.r+=vals.r; acc.b1+=vals.b1; acc.b2+=vals.b2; return acc;
+  },{s:0,f:0,r:0,b1:0,b2:0});
 
   const copy = () => {
     const table = document.getElementById(id);
-    const totalRow = table.querySelector("tr.bg-total"); 
-    
-    if (!totalRow) {
-      alert("복사할 합계 데이터가 없습니다.");
-      return;
-    }
-
-    const text = Array.from(totalRow.querySelectorAll("td"))
-      .slice(1) 
-      .map(td => td.innerText)
-      .join("\t");
-
-    navigator.clipboard.writeText(text).then(() => alert(`합계 수치만 복사되었습니다.`));
+    const totalRow = table?.querySelector("tr.bg-total");
+    if (!totalRow) { alert("복사할 합계 데이터가 없습니다."); return; }
+    const text = Array.from(totalRow.querySelectorAll("td")).slice(1).map(td=>td.innerText).join("\t");
+    navigator.clipboard.writeText(text).then(()=>alert("합계 수치만 복사되었습니다."));
   };
 
   return (
-    <div style={{ background:"#fff", padding:"24px", borderRadius:"20px", boxShadow:"0 2px 16px rgba(0,0,0,0.07)", marginBottom:"30px" }}>
+    <div style={{background:"#fff",padding:"24px",borderRadius:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:"24px"}}>
       <div className="summary-header">
         <h3 className="summary-title">{title}</h3>
         <button className="copy-btn" onClick={copy}>합계행 복사하기</button>
       </div>
-
-      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"8px" }}>
-        <p style={{fontSize:"11px", color:"#8B95A1", fontWeight:"bold", margin:0}}>그룹 태그 중복 선택 (클릭하여 끄고 켬):</p>
-        <button
-          onClick={onResetTags}
-          title="선택 초기화"
-          style={{
-            display:"flex", alignItems:"center", gap:"3px",
-            background:"#F2F4F6", border:"1px solid #E5E8EC", borderRadius:"6px",
-            padding:"3px 8px", fontSize:"11px", fontWeight:"600", color:"#8B95A1",
-            cursor:"pointer", fontFamily:"inherit", transition:"all 0.12s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background="#E5E8EC"; e.currentTarget.style.color="#333D4B"; }}
-          onMouseLeave={e => { e.currentTarget.style.background="#F2F4F6"; e.currentTarget.style.color="#8B95A1"; }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-          </svg>
+      <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}}>
+        <p style={{fontSize:"11px",color:"#8B95A1",fontWeight:"bold",margin:0}}>그룹 태그 중복 선택:</p>
+        <button onClick={onResetTags}
+          style={{display:"flex",alignItems:"center",gap:"3px",background:"#F2F4F6",border:"1px solid #E5E8EC",borderRadius:"6px",padding:"3px 8px",fontSize:"11px",fontWeight:"600",color:"#8B95A1",cursor:"pointer",fontFamily:"inherit"}}
+          onMouseEnter={e=>{e.currentTarget.style.background="#E5E8EC";e.currentTarget.style.color="#333D4B";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="#F2F4F6";e.currentTarget.style.color="#8B95A1";}}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           초기화
         </button>
       </div>
       <div className="tag-container">
-        {tags.map(tag => (
-          <div 
-            key={tag} 
-            className={`tag-item ${selectedTags.includes(tag) ? 'active' : ''}`}
-            onClick={() => onTagToggle(tag)}
-          >
-            {tag}
-          </div>
+        {tags.map(tag=>(
+          <div key={tag} className={`tag-item ${selectedTags.includes(tag)?'active':''}`} onClick={()=>onTagToggle(tag)}>{tag}</div>
         ))}
       </div>
-
       <table className="stable" id={id}>
         <thead>
-          <tr>
-            <th>날짜</th>
-            <th>성공</th>
-            <th>실패</th>
-            <th>읽음</th>
-            <th>버튼1 클릭</th>
-            <th>버튼2 클릭</th>
-          </tr>
+          <tr><th>날짜</th><th>성공</th><th>실패</th><th>읽음</th><th>버튼1 클릭</th><th>버튼2 클릭</th></tr>
         </thead>
         <tbody>
-          {rows.map(([date, vals]) => (
+          {rows.map(([date,vals])=>(
             <tr key={date}>
               <td className="bg-light">{date}</td>
-              <td>{fmt(vals.s)}</td>
-              <td>{fmt(vals.f)}</td>
-              <td>{fmt(vals.r)}</td>
-              <td>{fmt(vals.b1)}</td>
-              <td>{fmt(vals.b2)}</td>
+              <td>{fmt(vals.s)}</td><td>{fmt(vals.f)}</td><td>{fmt(vals.r)}</td>
+              <td>{fmt(vals.b1)}</td><td>{fmt(vals.b2)}</td>
             </tr>
           ))}
-          {rows.length > 0 && (
+          {rows.length>0 && (
             <tr className="bg-total">
               <td className="bg-total">전체 합계</td>
-              <td className="bg-total">{fmt(totals.s)}</td>
-              <td className="bg-total">{fmt(totals.f)}</td>
-              <td className="bg-total">{fmt(totals.r)}</td>
-              <td className="bg-total">{fmt(totals.b1)}</td>
+              <td className="bg-total">{fmt(totals.s)}</td><td className="bg-total">{fmt(totals.f)}</td>
+              <td className="bg-total">{fmt(totals.r)}</td><td className="bg-total">{fmt(totals.b1)}</td>
               <td className="bg-total">{fmt(totals.b2)}</td>
             </tr>
           )}
@@ -877,307 +778,192 @@ function CSVTable({ id, title, data, tags, selectedTags, onTagToggle, onResetTag
   );
 }
 
-/* ─────────────────────── 드롭다운 기반 세로형 상세 요약 테이블 ─────────────────────── */
+/* ── DropdownDetailTable ── */
 function DropdownDetailTable({ id, title, data, tags }) {
-  const [selectedTag, setSelectedTag] = useState(tags[0] || "");
+  const [selectedTag, setSelectedTag] = useState(tags[0]||"");
   const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [endDate,   setEndDate]   = useState("");
 
-  const formatToCSVDate = (dateStr) => dateStr.replace(/-/g, "");
-  const formatToInputDate = (csvDateStr) => {
-    if (!csvDateStr || csvDateStr.length !== 8) return "";
-    return `${csvDateStr.slice(0,4)}-${csvDateStr.slice(4,6)}-${csvDateStr.slice(6,8)}`;
-  };
+  const fmtCSV = (s) => s.replace(/-/g,"");
+  const fmtInput = (s) => { if(!s||s.length!==8) return ""; return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`; };
 
   useEffect(() => {
-    if (data && data.length > 0) {
-      const allDates = data.map(d => d.date.toString()).sort();
-      if (allDates.length > 0) {
-        setStartDate(formatToInputDate(allDates[0]));
-        setEndDate(formatToInputDate(allDates[allDates.length - 1]));
-      }
+    if (data&&data.length>0) {
+      const all = data.map(d=>d.date.toString()).sort();
+      setStartDate(fmtInput(all[0])); setEndDate(fmtInput(all[all.length-1]));
     }
   }, [data]);
 
   const filteredData = data.filter(d => {
-    if (d.groupTag !== selectedTag) return false;
-    
-    const dDate = d.date.toString();
-    const start = startDate ? formatToCSVDate(startDate) : "00000000";
-    const end = endDate ? formatToCSVDate(endDate) : "99999999";
-    
-    return dDate >= start && dDate <= end;
+    if (d.groupTag!==selectedTag) return false;
+    const dDate=d.date.toString();
+    const start=startDate?fmtCSV(startDate):"00000000";
+    const end=endDate?fmtCSV(endDate):"99999999";
+    return dDate>=start&&dDate<=end;
   });
 
-  let dateSet = new Set();
-  let senderKeySet = new Set();
-  let msgSpecSet = new Set();
-  let chatBubbleSet = new Set();
-
-  let s = 0, f_total = 0, r = 0, b1 = 0, b2 = 0, i1 = 0;
-
-  filteredData.forEach(curr => {
-    if (curr.date) dateSet.add(curr.date);
-    if (curr.senderKey) senderKeySet.add(curr.senderKey);
-    if (curr.messageSpec) msgSpecSet.add(curr.messageSpec);
-    if (curr.chatBubbleType) chatBubbleSet.add(curr.chatBubbleType);
-
-    if (curr.friendType === 'F') {
-      s += curr.successCount;
-      f_total += curr.validFailCount;
-      r += curr.readCount;
-      b1 += curr.button1;
-      if (curr.button2) b2 += curr.button2;
-      if (curr.image1) i1 += curr.image1;
-    } else if (curr.friendType === 'N') {
-      f_total += curr.validFailCount;
-    }
+  let dateSet=new Set(), senderKeySet=new Set(), msgSpecSet=new Set(), chatBubbleSet=new Set();
+  let s=0, f_total=0, r=0, b1=0, b2=0, i1=0;
+  filteredData.forEach(curr=>{
+    if(curr.date) dateSet.add(curr.date);
+    if(curr.senderKey) senderKeySet.add(curr.senderKey);
+    if(curr.messageSpec) msgSpecSet.add(curr.messageSpec);
+    if(curr.chatBubbleType) chatBubbleSet.add(curr.chatBubbleType);
+    if(curr.friendType==='F') {
+      s+=curr.successCount; f_total+=curr.validFailCount; r+=curr.readCount;
+      b1+=curr.button1; if(curr.button2) b2+=curr.button2; if(curr.image1) i1+=curr.image1;
+    } else if(curr.friendType==='N') { f_total+=curr.validFailCount; }
   });
 
-  const dateStr = [...dateSet].join(', ');
-  const senderKeyStr = [...senderKeySet].join(', ');
-  const msgSpecStr = [...msgSpecSet].join(', ');
-  const chatBubbleStr = [...chatBubbleSet].join(', ');
+  const dateStr=[...dateSet].join(', '), senderKeyStr=[...senderKeySet].join(', ');
+  const msgSpecStr=[...msgSpecSet].join(', '), chatBubbleStr=[...chatBubbleSet].join(', ');
 
-  let periodLabel = "전체 기간";
-  if (startDate && endDate) {
-    if (startDate === endDate) {
-      periodLabel = formatToCSVDate(startDate);
-    } else {
-      periodLabel = `${formatToCSVDate(startDate)} ~ ${formatToCSVDate(endDate)}`;
-    }
-  } else if (startDate) {
-    periodLabel = `${formatToCSVDate(startDate)} ~`;
-  } else if (endDate) {
-    periodLabel = `~ ${formatToCSVDate(endDate)}`;
-  }
+  let periodLabel="전체 기간";
+  if(startDate&&endDate) { periodLabel=startDate===endDate?fmtCSV(startDate):`${fmtCSV(startDate)} ~ ${fmtCSV(endDate)}`; }
+  else if(startDate) periodLabel=`${fmtCSV(startDate)} ~`;
+  else if(endDate) periodLabel=`~ ${fmtCSV(endDate)}`;
 
-  const headerTitle = selectedTag ? `${periodLabel} - ${selectedTag} [${senderKeyStr}]` : "선택된 데이터가 없습니다";
-
-  const openRate = s > 0 ? ((r / s) * 100).toFixed(1) : "0.0";
-  const btn1Rate = r > 0 ? ((b1 / r) * 100).toFixed(1) : "0.0";
-  const img1Rate = r > 0 ? ((i1 / r) * 100).toFixed(1) : "0.0";
+  const headerTitle=selectedTag?`${periodLabel} - ${selectedTag} [${senderKeyStr}]`:"선택된 데이터가 없습니다";
+  const openRate=s>0?((r/s)*100).toFixed(1):"0.0";
+  const btn1Rate=r>0?((b1/r)*100).toFixed(1):"0.0";
+  const img1Rate=r>0?((i1/r)*100).toFixed(1):"0.0";
 
   return (
-    <div style={{ background:"#fff", padding:"24px", borderRadius:"20px", boxShadow:"0 2px 16px rgba(0,0,0,0.07)", marginBottom:"30px" }}>
-      
-      <div data-html2canvas-ignore="true" style={{ background:"#FAFAFA", border:"1px solid #E5E8EC", borderRadius:"12px", padding:"18px", marginBottom:"20px", display:"flex", flexDirection:"column", gap:"14px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
-          <div style={{ width:"70px", fontSize:"13px", fontWeight:"700", color:"#333D4B" }}>그룹 태그</div>
-          <select 
-            value={selectedTag} 
-            onChange={(e) => setSelectedTag(e.target.value)}
-            style={{ flex:"1", maxWidth:"300px", padding:"8px 12px", borderRadius:"6px", border:"1px solid #C4C9D0", outline:"none", fontSize:"13px", cursor:"pointer", background:"#fff" }}
-          >
-            {tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+    <div style={{background:"#fff",padding:"24px",borderRadius:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:"24px"}}>
+      <div data-html2canvas-ignore="true" style={{background:"#FAFAFA",border:"1px solid #E5E8EC",borderRadius:"12px",padding:"18px",marginBottom:"20px",display:"flex",flexDirection:"column",gap:"14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
+          <div style={{width:"70px",fontSize:"13px",fontWeight:"700",color:"#333D4B"}}>그룹 태그</div>
+          <select value={selectedTag} onChange={e=>setSelectedTag(e.target.value)}
+            style={{flex:"1",maxWidth:"300px",padding:"8px 12px",borderRadius:"6px",border:"1px solid #C4C9D0",outline:"none",fontSize:"13px",cursor:"pointer",background:"#fff"}}>
+            {tags.map(tag=><option key={tag} value={tag}>{tag}</option>)}
           </select>
         </div>
-        
-        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
-          <div style={{ width:"70px", fontSize:"13px", fontWeight:"700", color:"#333D4B" }}>기간 선택</div>
-          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            <input 
-              type="date" 
-              value={startDate} 
-              onChange={e => setStartDate(e.target.value)} 
-              style={{ padding:"8px 12px", borderRadius:"6px", border:"1px solid #C4C9D0", outline:"none", fontSize:"13px", fontFamily:"inherit", background:"#fff" }} 
-            />
-            <span style={{ fontSize:"14px", color:"#8B95A1", fontWeight:"700", margin:"0 4px" }}>~</span>
-            <input 
-              type="date" 
-              value={endDate} 
-              onChange={e => setEndDate(e.target.value)} 
-              style={{ padding:"8px 12px", borderRadius:"6px", border:"1px solid #C4C9D0", outline:"none", fontSize:"13px", fontFamily:"inherit", background:"#fff" }} 
-            />
+        <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
+          <div style={{width:"70px",fontSize:"13px",fontWeight:"700",color:"#333D4B"}}>기간 선택</div>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+            <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
+              style={{padding:"8px 12px",borderRadius:"6px",border:"1px solid #C4C9D0",outline:"none",fontSize:"13px",fontFamily:"inherit",background:"#fff"}}/>
+            <span style={{fontSize:"14px",color:"#8B95A1",fontWeight:"700",margin:"0 4px"}}>~</span>
+            <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}
+              style={{padding:"8px 12px",borderRadius:"6px",border:"1px solid #C4C9D0",outline:"none",fontSize:"13px",fontFamily:"inherit",background:"#fff"}}/>
           </div>
         </div>
       </div>
-
-      <div className="summary-header" style={{ marginBottom: "16px" }}>
+      <div className="summary-header" style={{marginBottom:"16px"}}>
         <h3 className="summary-title">{title}</h3>
-        <button className="copy-btn" onClick={() => downloadImage('kakao-report-capture', '카카오톡_상세분석리포트')} style={{ display:"flex", alignItems:"center", gap:"4px", background:"#EEF2FF", color:"#4F46E5", border:"1px solid #C7D2FE" }}>
+        <button className="copy-btn" onClick={()=>downloadImage('kakao-report-capture','카카오톡_상세분석리포트')}
+          style={{display:"flex",alignItems:"center",gap:"4px",background:"#EEF2FF",color:"#4F46E5",border:"1px solid #C7D2FE"}}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
           </svg>
           이미지 저장 및 복사
         </button>
       </div>
-
-      <div id="kakao-report-capture" style={{ background: "#fff", padding: "16px", margin: "-16px" }}>
-        
-        <div style={{ borderRadius: "8px", border: "1px solid #E5E8EC", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "center", tableLayout: "fixed" }} id={id}>
+      <div id="kakao-report-capture" style={{background:"#fff",padding:"16px",margin:"-16px"}}>
+        <div style={{borderRadius:"8px",border:"1px solid #E5E8EC",overflow:"hidden"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",textAlign:"center",tableLayout:"fixed"}} id={id}>
             <thead>
+              <tr><th colSpan="2" style={{background:"#822551",color:"#fff",padding:"12px",fontSize:"14px",fontWeight:"700"}}>{headerTitle}</th></tr>
               <tr>
-                <th colSpan="2" style={{ background: "#822551", color: "#fff", padding: "12px", fontSize: "14px", fontWeight: "700" }}>
-                  {headerTitle}
-                </th>
-              </tr>
-              <tr>
-                <th style={{ background: "#9A2B61", color: "#fff", padding: "10px", fontSize: "13px", width: "35%", borderRight: "1px solid rgba(255,255,255,0.2)" }}>키</th>
-                <th style={{ background: "#9A2B61", color: "#fff", padding: "10px", fontSize: "13px", width: "65%" }}>값</th>
+                <th style={{background:"#9A2B61",color:"#fff",padding:"10px",fontSize:"13px",width:"35%",borderRight:"1px solid rgba(255,255,255,0.2)"}}>키</th>
+                <th style={{background:"#9A2B61",color:"#fff",padding:"10px",fontSize:"13px",width:"65%"}}>값</th>
               </tr>
             </thead>
             <tbody>
-              <tr style={{ background: "#F2F4F6", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>groupTag</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{selectedTag || "-"}</td>
-              </tr>
-              <tr style={{ background: "#fff", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>date</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{dateStr || "-"}</td>
-              </tr>
-              <tr style={{ background: "#F2F4F6", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>senderKey</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{senderKeyStr || "-"}</td>
-              </tr>
-              <tr style={{ background: "#fff", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>messageSpec</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{msgSpecStr || "-"}</td>
-              </tr>
-              <tr style={{ background: "#F2F4F6", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>chatBubbleType</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{chatBubbleStr || "-"}</td>
-              </tr>
-              <tr style={{ background: "#fff", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>successCount</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{fmt(s)}</td>
-              </tr>
-              <tr style={{ background: "#F2F4F6", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B", fontWeight: "bold" }}>validFailCount</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#EF4444", fontWeight: "bold" }}>{fmt(f_total)}</td>
-              </tr>
-              <tr style={{ background: "#fff", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>readCount</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{fmt(r)}</td>
-              </tr>
-              <tr style={{ background: "#F2F4F6", borderBottom: "1px solid #E5E8EC" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>button1</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{fmt(b1)}</td>
-              </tr>
-              {b2 > 0 && (
-                <tr style={{ background: "#fff", borderBottom: "1px solid #E5E8EC" }}>
-                  <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>button2</td>
-                  <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{fmt(b2)}</td>
+              {[
+                ["groupTag", selectedTag||"-"],["date",dateStr||"-"],["senderKey",senderKeyStr||"-"],
+                ["messageSpec",msgSpecStr||"-"],["chatBubbleType",chatBubbleStr||"-"],
+                ["successCount",fmt(s)],["validFailCount",fmt(f_total),"#EF4444",true],
+                ["readCount",fmt(r)],["button1",fmt(b1)],
+                ...(b2>0?[["button2",fmt(b2)]]:[]),
+                ["image1",fmt(i1)],
+              ].map(([key,val,color,bold],idx)=>(
+                <tr key={key} style={{background:idx%2===0?"#F2F4F6":"#fff",borderBottom:"1px solid #E5E8EC"}}>
+                  <td style={{padding:"12px",fontSize:"13px",color:"#333D4B",fontWeight:bold?"bold":"normal"}}>{key}</td>
+                  <td style={{padding:"12px",fontSize:"13px",color:color||"#333D4B",fontWeight:bold?"bold":"normal"}}>{val}</td>
                 </tr>
-              )}
-              <tr style={{ background: b2 > 0 ? "#F2F4F6" : "#fff", borderBottom: "none" }}>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>image1</td>
-                <td style={{ padding: "12px", fontSize: "13px", color: "#333D4B" }}>{fmt(i1)}</td>
-              </tr>
+              ))}
             </tbody>
           </table>
         </div>
-
-        <div style={{ marginTop: "20px", padding: "16px 20px", background: "#fff", border: "1px solid #E5E8EC", borderRadius: "8px", margin: "20px 8px 0" }}>
-          <div style={{ padding: "8px 0", fontSize: "14px", color: "#333D4B" }}>
-            <strong>전체 발송 성공 건수:</strong> {fmt(s)}
-          </div>
-          <div style={{ padding: "8px 0", fontSize: "14px", color: "#333D4B", borderTop: "1px solid #F2F4F6" }}>
-            <strong>오픈 수:</strong> {fmt(r)} <span style={{ color: "#505967", fontSize: "13px" }}>(발송 성공 건수 대비 {openRate}%)</span>
-          </div>
-          <div style={{ padding: "8px 0", fontSize: "14px", color: "#333D4B", borderTop: "1px solid #F2F4F6" }}>
-            <strong>버튼1 클릭 수:</strong> {fmt(b1)} <span style={{ color: "#505967", fontSize: "13px" }}>(오픈 수 대비 {btn1Rate}%)</span>
-          </div>
-          <div style={{ padding: "8px 0", fontSize: "14px", color: "#333D4B", borderTop: "1px solid #F2F4F6" }}>
-            <strong>이미지 링크 클릭 수:</strong> {fmt(i1)} <span style={{ color: "#505967", fontSize: "13px" }}>(오픈 수 대비 {img1Rate}%)</span>
-          </div>
+        <div style={{marginTop:"20px",padding:"16px 20px",background:"#fff",border:"1px solid #E5E8EC",borderRadius:"8px",margin:"20px 8px 0"}}>
+          {[
+            ["전체 발송 성공 건수", fmt(s), null],
+            ["오픈 수", fmt(r), `발송 성공 건수 대비 ${openRate}%`],
+            ["버튼1 클릭 수", fmt(b1), `오픈 수 대비 ${btn1Rate}%`],
+            ["이미지 링크 클릭 수", fmt(i1), `오픈 수 대비 ${img1Rate}%`],
+          ].map(([label,val,sub],idx)=>(
+            <div key={idx} style={{padding:"8px 0",fontSize:"14px",color:"#333D4B",borderTop:idx>0?"1px solid #F2F4F6":"none"}}>
+              <strong>{label}:</strong> {val}
+              {sub&&<span style={{color:"#505967",fontSize:"13px"}}> ({sub})</span>}
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────── 외부 데이터 복사/붙여넣기 요약 컴포넌트 ─────────────────────── */
+/* ── KakaoExternalReport ── */
 function KakaoExternalReport({ id, title }) {
   const [rawText, setRawText] = useState("");
   const [parsedData, setParsedData] = useState(null);
 
   const handleParse = () => {
     if (!rawText.trim()) return;
-    const columns = rawText.split('\t').map(s => s.trim());
-    
-    if (columns.length >= 14) {
-      setParsedData(columns);
-    } else {
-      alert("데이터 형식이 올바르지 않습니다. 외부 사이트 표의 한 줄을 그대로 복사해서 붙여넣어주세요.");
-    }
-  };
-
-  const copyImage = () => {
-    downloadImage(id, '카카오톡_외부집계리포트');
+    const columns = rawText.split('\t').map(s=>s.trim());
+    if (columns.length>=14) setParsedData(columns);
+    else alert("데이터 형식이 올바르지 않습니다.");
   };
 
   return (
-    <div style={{ background:"#fff", padding:"24px", borderRadius:"20px", boxShadow:"0 2px 16px rgba(0,0,0,0.07)", marginBottom:"30px" }}>
-      <div className="summary-header" style={{ marginBottom: "16px" }}>
+    <div style={{background:"#fff",padding:"24px",borderRadius:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:"24px"}}>
+      <div className="summary-header" style={{marginBottom:"16px"}}>
         <h3 className="summary-title">{title}</h3>
-        {parsedData && (
-          <button data-html2canvas-ignore="true" className="copy-btn" onClick={copyImage} style={{ display:"flex", alignItems:"center", gap:"4px", background:"#EEF2FF", color:"#4F46E5", border:"1px solid #C7D2FE" }}>
+        {parsedData&&(
+          <button data-html2canvas-ignore="true" className="copy-btn" onClick={()=>downloadImage(id,'카카오톡_외부집계리포트')}
+            style={{display:"flex",alignItems:"center",gap:"4px",background:"#EEF2FF",color:"#4F46E5",border:"1px solid #C7D2FE"}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
             </svg>
             이미지 저장 및 복사
           </button>
         )}
       </div>
-
       {!parsedData ? (
-        <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
-          <input 
-            type="text" 
-            value={rawText} 
-            onChange={e => setRawText(e.target.value)} 
-            placeholder="여기에 CJ StatusBoard에서 복사한 데이터(한 줄)를 붙여넣으세요." 
-            style={{ flex: 1, padding:"10px 12px", borderRadius:"8px", border:"1px solid #E5E8EC", outline:"none", fontSize:"13px" }}
-            onKeyDown={e => { if (e.key === "Enter") handleParse(); }}
-          />
-          <button onClick={handleParse} className="analyze-btn" style={{ padding: "10px 20px" }}>확인</button>
+        <div style={{display:"flex",gap:"8px"}}>
+          <input type="text" value={rawText} onChange={e=>setRawText(e.target.value)}
+            placeholder="CJ StatusBoard에서 복사한 데이터(한 줄)를 붙여넣으세요."
+            style={{flex:1,padding:"10px 12px",borderRadius:"8px",border:"1px solid #E5E8EC",outline:"none",fontSize:"13px"}}
+            onKeyDown={e=>{if(e.key==="Enter")handleParse();}}/>
+          <button onClick={handleParse} className="analyze-btn" style={{padding:"10px 20px"}}>확인</button>
         </div>
       ) : (
-        <div style={{ overflowX: "auto", paddingBottom: "16px", margin: "0 -24px", padding: "0 24px 16px" }}>
-          <div id={id} style={{ background: "#fff", padding: "16px", borderRadius: "12px", width: "max-content", minWidth: "100%" }}>
-            <div style={{ overflow: "hidden", borderRadius: "8px", border: "1px solid #E5E8EC", marginBottom: "20px" }}>
-              <table className="stable" style={{ margin: 0, border: "none", whiteSpace: "nowrap" }}>
-                <thead>
-                  <tr>
-                    <th>MID</th>
-                    <th>저니명</th>
-                    <th>버전</th>
-                    <th>모듈</th>
-                    <th>페일백 구분</th>
-                    <th>발송시간</th>
-                    <th style={{color:"#F59E0B"}}>대기중</th>
-                    <th style={{color:"#F59E0B"}}>발송중</th>
-                    <th style={{color:"#EF4444"}}>접수실패</th>
-                    <th style={{color:"#10B981"}}>친구톡 발송완료</th>
-                    <th style={{color:"#3B82F6"}}>페일백 발송완료</th>
-                    <th style={{color:"#EF4444"}}>발송실패</th>
-                    <th style={{color:"#EF4444"}}>실패코드</th>
-                    <th style={{color:"#8B5CF6"}}>총 건수</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    {parsedData.slice(0, 14).map((col, idx) => (
-                      <td key={idx} style={{ fontWeight: (idx === 0 || idx >= 9) ? "bold" : "normal" }}>
-                        {col}
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            
-            <ul style={{ fontSize: "15px", color: "#333D4B", lineHeight: "1.8", margin: 0, paddingLeft: "24px", listStyleType: "disc" }}>
-              <li><strong>전체 모수</strong>: {fmt(parseInt(parsedData[13], 10))}</li>
-              <li><strong>발송 성공</strong>: {fmt(parseInt(parsedData[9], 10))}</li>
-              <li><strong>발송 실패</strong>: {fmt(parseInt(parsedData[11], 10))}</li>
-            </ul>
+        <div id={id} style={{background:"#fff",padding:"16px",borderRadius:"12px"}}>
+          <div style={{overflow:"hidden",borderRadius:"8px",border:"1px solid #E5E8EC",marginBottom:"20px"}}>
+            <table className="stable" style={{margin:0,border:"none",whiteSpace:"nowrap"}}>
+              <thead>
+                <tr>
+                  {["MID","저니명","버전","모듈","페일백 구분","발송시간",
+                    <span style={{color:"#F59E0B"}}>대기중</span>,<span style={{color:"#F59E0B"}}>발송중</span>,
+                    <span style={{color:"#EF4444"}}>접수실패</span>,<span style={{color:"#10B981"}}>친구톡 발송완료</span>,
+                    <span style={{color:"#3B82F6"}}>페일백 발송완료</span>,<span style={{color:"#EF4444"}}>발송실패</span>,
+                    <span style={{color:"#EF4444"}}>실패코드</span>,<span style={{color:"#8B5CF6"}}>총 건수</span>
+                  ].map((h,i)=><th key={i}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>{parsedData.slice(0,14).map((col,i)=><td key={i} style={{fontWeight:(i===0||i>=9)?"bold":"normal"}}>{col}</td>)}</tr>
+              </tbody>
+            </table>
           </div>
-          
-          <div data-html2canvas-ignore="true" style={{ marginTop: "16px", textAlign: "right" }}>
-            <button className="retry-btn" onClick={() => { setParsedData(null); setRawText(""); }}>데이터 다시 입력</button>
+          <ul style={{fontSize:"15px",color:"#333D4B",lineHeight:"1.8",margin:0,paddingLeft:"24px",listStyleType:"disc"}}>
+            <li><strong>전체 모수</strong>: {fmt(parseInt(parsedData[13],10))}</li>
+            <li><strong>발송 성공</strong>: {fmt(parseInt(parsedData[9],10))}</li>
+            <li><strong>발송 실패</strong>: {fmt(parseInt(parsedData[11],10))}</li>
+          </ul>
+          <div data-html2canvas-ignore="true" style={{marginTop:"16px",textAlign:"right"}}>
+            <button className="retry-btn" onClick={()=>{setParsedData(null);setRawText("");}}>데이터 다시 입력</button>
           </div>
         </div>
       )}
@@ -1185,506 +971,507 @@ function KakaoExternalReport({ id, title }) {
   );
 }
 
-
-/* ─────────────────────── App ─────────────────────── */
-function App() {
-  const [slots,      setSlots]      = useState([]);
-  const [editData,   setEditData]   = useState(null);
-  const [showRawId,  setShowRawId]  = useState(null);
-  const [showModal,  setShowModal]  = useState(false);
-
-  const [inputText, setInputText] = useState("");
-  const [isMainDragging, setIsMainDragging] = useState(false);
-
-  const [csvData, setCsvData] = useState(null);
-  const [selectedTags1, setSelectedTags1] = useState([]);
-  const [selectedTags2, setSelectedTags2] = useState([]);
-  const [tags1, setTags1] = useState([]);
-  const [tags2, setTags2] = useState([]);
-  
-  const [tags3, setTags3] = useState([]);
-
-  const doneSlots  = slots.filter(s => s.parsed);
-  const doneCount  = doneSlots.length;
-  const canAddMore = slots.length < MAX_SLOTS;
-
+/* ── 우클릭 컨텍스트 메뉴 ── */
+function ContextMenu({ x, y, onSave, onCopy, onClose }) {
+  const menuRef = useRef();
   useEffect(() => {
-    if (doneSlots.length > 0) {
-      setEditData(JSON.parse(JSON.stringify(mergeReports(doneSlots.map(s => s.parsed)))));
-    } else {
-      setEditData(null);
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
     }
-  }, [slots]);
-
-  function removeSlot(id) {
-    setSlots(prev => prev.filter(s => s.id !== id));
-    if (showRawId === id) setShowRawId(null);
-  }
-
-  function reset() {
-    setSlots([]);
-    setEditData(null);
-    setShowRawId(null);
-  }
-
-  function resetCSV() {
-    setCsvData(null);
-    setSelectedTags1([]); setSelectedTags2([]);
-    setTags1([]); setTags2([]); setTags3([]);
-  }
-
-  function handleTextSubmit(rawText) {
-    const csv = parseCSV(rawText);
-    if (csv) {
-      setCsvData(csv);
-
-      const samsoniteTags = csv.tags.filter(tag => 
-        tag.startsWith('SO') || tag.startsWith('SS') || tag.includes('-SS-') || tag.includes('TEST')
-      );
-      
-      const atTags = csv.tags.filter(tag => 
-        tag.startsWith('AT') || tag.includes('-AT-') || tag.includes('TEST')
-      );
-
-      setTags1(samsoniteTags);
-      setTags2(atTags);
-      setSelectedTags1(samsoniteTags.length > 0 ? [samsoniteTags[0]] : []);
-      setSelectedTags2(atTags.length > 0 ? [atTags[0]] : []);
-      
-      setTags3(csv.tags);
-    } else {
-      const parsed = parseReport(rawText);
-      const newSlot = { id: Date.now() + Math.random(), rawText, parsed };
-      setSlots(prev => [...prev, newSlot]);
-    }
-    setShowModal(false);
-  }
-
-  const handleMainDragOver = (e) => {
-    e.preventDefault();
-    setIsMainDragging(true);
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+  const [hov, setHov] = useState(null);
+  const menuStyle = {
+    position:'fixed', left:x, top:y, zIndex:99999,
+    background:'#fff', borderRadius:'10px',
+    boxShadow:'0 4px 24px rgba(0,0,0,0.16), 0 1px 4px rgba(0,0,0,0.08)',
+    padding:'6px', minWidth:'160px', border:'1px solid #E5E8EC',
   };
-
-  const handleMainDragLeave = (e) => {
-    e.preventDefault();
-    setIsMainDragging(false);
-  };
-
-  const handleMainDrop = (e) => {
-    e.preventDefault();
-    setIsMainDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target.result;
-        handleTextSubmit(text); 
-      };
-      reader.readAsText(file); 
-    }
-  };
-
-  const toggleTag = (setter, current) => (tag) => {
-    if (current.includes(tag)) setter(current.filter(t => t !== tag));
-    else setter([...current, tag]);
-  };
-
-  function downloadExcel() {
-    if (!editData) return;
-    const d = editData;
-    const delivered    = d.delivered ?? d.totalSent;
-    const uniqueOpens  = d.opens?.unique;
-    const uniqueClicks = d.clicks?.unique;
-    const calcTotalSent   = (delivered!=null && d.bounces?.total!=null) ? delivered+d.bounces.total : d.totalSent;
-    const calcDidNotOpen  = (delivered!=null && uniqueOpens!=null)  ? delivered-uniqueOpens  : d.didNotOpen;
-    const calcDidNotClick = (delivered!=null && uniqueClicks!=null) ? delivered-uniqueClicks : d.didNotClick;
-    const r = (n, den, dec=2) => (n!=null&&den) ? +((n/den)*100).toFixed(dec) : null;
-
-    const rows = [
-      ["분류","항목","전체 수","고유 수","비율(%)","비고"],
-      ["요약","총 발송 건수",          calcTotalSent,          null, null, null],
-      ["요약","총 전송 성공 건수",      delivered,              null, r(delivered,calcTotalSent,3), null],
-      ["요약","반송 총 건수",           d.bounces?.total??null, null, r(d.bounces?.total,calcTotalSent), null],
-      ["요약","  하드 바운스",          d.bounces?.hard??null,  null, r(d.bounces?.hard,d.bounces?.total), null],
-      ["요약","  블록 바운스",          d.bounces?.block??null, null, r(d.bounces?.block,d.bounces?.total), null],
-      ["요약","  소프트 바운스",        d.bounces?.soft??null,  null, r(d.bounces?.soft,d.bounces?.total), null],
-      ["활동 지표","오픈 (Opens)",       d.opens?.total??null,   uniqueOpens??null,  r(uniqueOpens,delivered), "고유 발송 수 대비"],
-      ["활동 지표","클릭 (Clicks)",      d.clicks?.total??null,  d.clicks?.unique??null, r(d.clicks?.unique,uniqueOpens), "고유 오픈 수 대비"],
-      ["활동 지표","전환 (Conversions)", null, d.conversions?.unique??d.conversions?.total??null, r(d.conversions?.unique??d.conversions?.total,delivered,3), d.conversionAmount!=null ? `₩${d.conversionAmount.toLocaleString("ko-KR")}` : "고유 발송 수 대비"],
-      ["활동 지표","구독 취소",          null, d.unsubscribes?.unique??null, r(d.unsubscribes?.unique,delivered,3), "고유 발송 수 대비"],
-      ["미참여","오픈하지 않은 고객",    null, calcDidNotOpen??null,  r(calcDidNotOpen,delivered), ""],
-      ["미참여","클릭하지 않은 고객",    null, calcDidNotClick??null, r(calcDidNotClick,delivered), ""],
-    ];
-
-    const f = (formula) => ({ t: 'n', f: formula });
-    const fp = (formula) => ({ t: 'n', f: formula, z: '0.00%' });
-
-    rows.push([], [], [], []);
-    rows.push([null, null, f("C2"), f("C2"), fp("C18/D18"), f("C3"), fp("F18/D18"), f("C4"), fp("H18/D18"), f("C6+C7"), fp("J18/D18"), f("C5"), fp("L18/D18")]);
-    rows.push([], [], [], [], []);
-    rows.push([null, null, f("D8"), fp("C24/F18"), null, f("C8"), fp("F24/F18"), null, f("F24-C24"), fp("I24/F18")]);
-    rows.push([null, null, f("D9"), fp("C25/F18"), fp("C25/C24"), f("C9"), fp("F25/F18"), fp("F25/F24"), f("F25-C25"), fp("I25/F18"), fp("I25/C24")]);
-    rows.push([null, null, f("D10"), fp("C26/F18"), fp("C26/C24")]);
-    rows.push([null, null, f("D11"), fp("C27/F18"), fp("C27/C24")]);
-
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [
-      {wch:12}, {wch:32}, {wch:14}, {wch:14}, {wch:12}, {wch:18},
-      {wch:12}, {wch:12}, {wch:12}, {wch:12}, {wch:12}, {wch:12}, {wch:12}
-    ];
-    
-    const wb = XLSX.utils.book_new();
-    const title = (doneCount > 1) ? `통합 성과 리포트 (${doneCount}개 합산)` : "이메일 성과 리포트";
-    XLSX.utils.book_append_sheet(wb, ws, "성과 리포트");
-    XLSX.writeFile(wb, `${title}.xlsx`);
-  }
-
-  const copyTableToClipboard = (tableId, skipFirstCol = false) => {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    
-    let text = "";
-    const rows = table.querySelectorAll("tbody tr");
-    
-    rows.forEach(row => {
-      let cols = Array.from(row.querySelectorAll("th, td"));
-      if (skipFirstCol) cols = cols.slice(1);
-      const rowData = cols.map(col => col.innerText).join("\t");
-      text += rowData + "\n";
-    });
-    
-    navigator.clipboard.writeText(text).then(() => {
-      alert("표의 값만 복사되었습니다. 엑셀에 붙여넣으세요!");
-    });
-  };
-
-  const getSummaryData = () => {
-    if (!editData) return null;
-    const d = editData;
-    const totalSent = (d.delivered || 0) + (d.bounces?.total || 0) || d.totalSent || 0;
-    const delivered = d.delivered || 0;
-    const bTotal = d.bounces?.total || 0;
-    const bHard = d.bounces?.hard || 0;
-    const bBlock = d.bounces?.block || 0;
-    const bSoft = d.bounces?.soft || 0;
-    const oUni = d.opens?.unique || 0;
-    const oTot = d.opens?.total || 0;
-    const cUni = d.clicks?.unique || 0;
-    const cTot = d.clicks?.total || 0;
-    const vUni = d.conversions?.unique || d.conversions?.total || 0;
-    const uUni = d.unsubscribes?.unique || 0;
-
-    const rate = (n, den, dec = 2) => den ? ((n / den) * 100).toFixed(dec) + "%" : (0).toFixed(dec) + "%";
-    return { totalSent, delivered, bTotal, bHard, bBlock, bSoft, oUni, oTot, cUni, cTot, vUni, uUni, rate };
-  };
-
-  const s = getSummaryData();
-
-  const reportTitle = (() => {
-    if (doneCount > 1) return `통합 성과 분석 리포트 (리포트 ${doneCount}개 합산)`;
-    if (doneCount === 1) {
-      const d = toKoreanDate(doneSlots[0].parsed?.publishedOn);
-      return d ? `eDM 성과 분석 리포트 (${d})` : "eDM 성과 분석 리포트";
-    }
-    return "eDM 성과 분석 리포트";
-  })();
-
-  const emptyCount = MAX_SLOTS - slots.length - (canAddMore ? 1 : 0);
-
+  const item = (key, icon, label, handler) => (
+    <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'9px 12px',borderRadius:'7px',
+      cursor:'pointer',fontSize:'13px',fontWeight:'600',color:'#333D4B',
+      background:hov===key?'#F2F4F6':'transparent',transition:'background 0.1s'}}
+      onMouseEnter={()=>setHov(key)} onMouseLeave={()=>setHov(null)}
+      onClick={()=>{handler();onClose();}}>
+      {icon}{label}
+    </div>
+  );
   return (
-    <div style={{ minHeight:"100vh", background:"#F2F4F6", padding:"2.5rem 1.5rem" }}>
-      <div style={{ maxWidth:"900px", margin:"0 auto" }}>
-        
-        {slots.length === 0 && !csvData && (
-          <div 
-            style={{
-              background: isMainDragging ? "#EEF2FF" : "#fff", 
-              borderRadius: "24px",
-              boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-              padding: "2.5rem 2rem",
-              transition: "all 0.2s",
-              border: isMainDragging ? "2px dashed #4F46E5" : "2px solid transparent"
-            }}
-            onDragOver={handleMainDragOver}
-            onDragLeave={handleMainDragLeave}
-            onDrop={handleMainDrop}
-          >
-            <div style={{ marginBottom: "20px" }}>
-              <p style={{ margin:0, fontSize:"22px", fontWeight:"800", color:"#333D4B", letterSpacing:"-0.03em" }}>
-                📊 GP 리포트 분석기
-              </p>
-              <p style={{ margin:"8px 0 0", fontSize:"15px", color:"#8B95A1", lineHeight:1.6 }}>
-                eDM 리포트 텍스트를 복사, 붙여넣기 하거나 CSV 파일을 드래그 앤 드롭으로 넣어주세요<br/>
-                <span style={{fontSize:"13px"}}>(이메일은 최대 3개 합산)</span>
-              </p>
-            </div>
-            
-            <textarea
-              className="paste-textarea"
-              value={inputText}
-              onChange={e => setInputText(e.target.value)}
-              placeholder={"Ctrl+V 로 텍스트를 붙여넣거나, 여기에 CSV 파일을 드래그 앤 드롭 하세요.\n\n예시 (이메일):\nTotal Sent: 65,246\nDelivery Rate: 99.635%\n\n예시 (CSV):\ngroupTag,date,successCount,...\nAT,20260403,16,..."}
-              onKeyDown={e => {
-                if ((e.ctrlKey||e.metaKey) && e.key==="Enter") {
-                  if(inputText.trim()) {
-                    handleTextSubmit(inputText.trim());
-                    setInputText("");
-                  }
-                }
-              }}
-              style={{ backgroundColor: isMainDragging ? "#fff" : "#FAFAFA", minHeight: "220px" }}
-            />
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:"14px" }}>
-              <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
-                <span style={{ fontSize:"11px", color:"#C4C9D0" }}>Ctrl+Enter로 바로 분석</span>
-              </div>
-              <button 
-                className="analyze-btn" 
-                onClick={() => {
-                  if(inputText.trim()) {
-                    handleTextSubmit(inputText.trim());
-                    setInputText("");
-                  }
-                }} 
-                disabled={!inputText.trim()}
-              >
-                분석하기
-              </button>
-            </div>
-          </div>
-        )}
-
-        {csvData && (
-          <div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
-              <p style={{ margin:0, fontSize:"18px", fontWeight:"800", color:"#333D4B" }}>카카오톡 메시지 발송 성과 분석 (CSV)</p>
-              <button className="retry-btn" onClick={resetCSV}>처음으로</button>
-            </div>
-            
-            <CSVTable 
-              id="csv-table-1" 
-              title={<><span style={{ color: "#2563EB" }}>쌤소나이트</span> 캠페인 발송 결과 리포트(위클리 리포트용)</>}
-              data={csvData.data} 
-              tags={tags1}
-              selectedTags={selectedTags1} 
-              onTagToggle={toggleTag(setSelectedTags1, selectedTags1)}
-              onResetTags={() => setSelectedTags1([])}
-            />
-            <CSVTable 
-              id="csv-table-2" 
-              title={<><span style={{ color: "#C53030" }}>아메리칸 투어리스트</span> 캠페인 발송 결과 리포트(위클리 리포트용)</>}
-              data={csvData.data} 
-              tags={tags2} 
-              selectedTags={selectedTags2} 
-              onTagToggle={toggleTag(setSelectedTags2, selectedTags2)}
-              onResetTags={() => setSelectedTags2([])}
-            />
-            <DropdownDetailTable 
-              id="csv-table-3" 
-              title={<><span style={{ color: "#CA8A04" }}>KakaoTalk</span> 캠페인 API 집계(1,2차 리포트용)</>}
-              data={csvData.data} 
-              tags={tags3} 
-            />
-
-            <KakaoExternalReport 
-              id="kakao-external-report" 
-              title={<><span style={{ color: "#10B981" }}>KakaoTalk</span> CJ StatusBoard</>}
-            />
-          </div>
-        )}
-
-        {slots.length > 0 && !csvData && (
-          <>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
-              <p style={{ margin:0, fontSize:"14px", fontWeight:"700", color:"#8B95A1" }}>
-                리포트 목록
-              </p>
-              <div style={{ display:"flex", gap:"8px" }}>
-                {doneCount > 0 && (
-                  <button className="retry-btn" onClick={downloadExcel}
-                    style={{ display:"flex", alignItems:"center", gap:"5px" }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 01-2-2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    엑셀 다운로드
-                  </button>
-                )}
-                <button className="retry-btn" onClick={reset}>처음으로</button>
-              </div>
-            </div>
-
-            <div style={{ display:"flex", gap:"12px", marginBottom:"22px" }}>
-              {slots.map((slot, i) => (
-                <SlotCard key={slot.id} slot={slot} index={i} onRemove={() => removeSlot(slot.id)}
-                  showRaw={showRawId === slot.id} onToggleRaw={() => setShowRawId(showRawId === slot.id ? null : slot.id)} />
-              ))}
-              {canAddMore && (
-                <div className="add-slot-card" onClick={() => setShowModal(true)}>
-                  <div style={{ width:"36px", height:"36px", background:"#EBEBEB", borderRadius:"10px",
-                    display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                  </div>
-                  <span style={{ fontSize:"12px", fontWeight:"700" }}>리포트 추가 ({slots.length}/{MAX_SLOTS})</span>
-                </div>
-              )}
-              {Array.from({ length: Math.max(0, emptyCount) }).map((_, i) => (
-                <div key={i} className="empty-slot" />
-              ))}
-            </div>
-
-            {doneCount > 1 && (
-              <div style={{ textAlign:"center" }}>
-                <span className="sum-badge">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M12 5v14M5 12h14"/>
-                  </svg>
-                  리포트 {doneCount}개의 수치를 합산한 결과입니다
-                </span>
-              </div>
-            )}
-
-            {doneCount > 0 && editData && (
-              <>
-                <div id="main-report-capture" style={{ padding: "16px", margin: "16px -16px -8px", background: "#F2F4F6", borderRadius: "24px" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"14px" }}>
-                    <h2 style={{ margin:0, fontSize:"18px", fontWeight:"800", color:"#333D4B", letterSpacing:"-0.02em", paddingLeft:"8px" }}>
-                      {reportTitle}
-                    </h2>
-                    <button data-html2canvas-ignore="true" className="copy-btn" onClick={() => downloadImage('main-report-capture', '성과분석리포트')} style={{ display:"flex", alignItems:"center", gap:"4px", background:"#EEF2FF", color:"#4F46E5", border:"1px solid #C7D2FE" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                      이미지 저장 및 복사
-                    </button>
-                  </div>
-
-                  <ReportTable data={editData} onDataChange={setEditData} />
-                </div>
-                
-                <div style={{ marginTop:"8px", paddingRight:"4px" }}>
-                  <span style={{ fontSize:"11px", color:"#C4C9D0" }}>
-                    숫자 셀에 커서를 올려 클릭하면 직접 수정할 수 있습니다
-                  </span>
-                </div>
-
-                {s && (
-                  <div className="summary-section" style={{ marginTop: "30px" }}>
-
-                    {/* ── SUMMARY 테이블 ── */}
-                    <div className="summary-header">
-                      <span className="summary-title">SUMMARY</span>
-                      <button className="copy-btn" onClick={() => {
-                        const table = document.getElementById('table-summary');
-                        if (!table) return;
-                        const row = table.querySelector('tbody tr');
-                        if (!row) return;
-                        const text = Array.from(row.querySelectorAll('td')).map(td => td.innerText).join('\t');
-                        navigator.clipboard.writeText(text).then(() => alert('SUMMARY 행이 복사되었습니다. 엑셀에 붙여넣으세요!'));
-                      }}>행 복사하기</button>
-                    </div>
-                    <table className="stable" id="table-summary">
-                      <thead>
-                        <tr>
-                          <th>성공</th>
-                          <th>반송</th>
-                          <th>오픈</th>
-                          <th>클릭</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={{fontWeight:"700", color:"#333D4B"}}>{fmt(s.delivered)}</td>
-                          <td style={{fontWeight:"700", color:"#333D4B"}}>{fmt(s.bTotal)}</td>
-                          <td style={{fontWeight:"700", color:"#333D4B"}}>{fmt(s.oUni)}</td>
-                          <td style={{fontWeight:"700", color:"#333D4B"}}>{fmt(s.cUni)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-
-                    <div className="summary-header">
-                      <span className="summary-title">발송 결과</span>
-                      <button className="copy-btn" onClick={() => copyTableToClipboard('table-send')}>표 복사하기</button>
-                    </div>
-                    <table className="stable" id="table-send">
-                      <thead>
-                        <tr>
-                          <th>대상수</th><th>건수</th><th>비율</th>
-                          <th>성공</th><th>성공률</th>
-                          <th>반송</th><th>반송률</th>
-                          <th>소프트+블록</th><th>소프트+블록률</th>
-                          <th>하드</th><th>하드률</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>{fmt(s.totalSent)}</td>
-                          <td>{fmt(s.totalSent)}</td>
-                          <td>100.00%</td>
-                          <td>{fmt(s.delivered)}</td>
-                          <td>{s.rate(s.delivered, s.totalSent)}</td>
-                          <td>{fmt(s.bTotal)}</td>
-                          <td>{s.rate(s.bTotal, s.totalSent)}</td>
-                          <td>{fmt(s.bSoft + s.bBlock)}</td>
-                          <td>{s.rate(s.bSoft + s.bBlock, s.totalSent)}</td>
-                          <td>{fmt(s.bHard)}</td>
-                          <td>{s.rate(s.bHard, s.totalSent)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-
-                    <div className="summary-header">
-                      <span className="summary-title">반응 결과</span>
-                      <button className="copy-btn" onClick={() => copyTableToClipboard('table-res', true)}>표 복사하기</button>
-                    </div>
-                    <table className="stable" id="table-res">
-                      <thead>
-                        <tr>
-                          <th>항목</th><th>고유수</th><th>발송대비</th><th>오픈대비</th>
-                          <th>전체수</th><th>전체발송대비</th><th>오픈대비</th>
-                          <th>중복</th><th>중복발송대비</th><th>중복오픈대비</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td className="bg-light">Open</td>
-                          <td>{fmt(s.oUni)}</td><td>{s.rate(s.oUni, s.delivered)}</td><td>-</td>
-                          <td>{fmt(s.oTot)}</td><td>{s.rate(s.oTot, s.delivered)}</td><td>-</td>
-                          <td>{fmt(s.oTot - s.oUni)}</td><td>{s.rate(s.oTot - s.oUni, s.delivered)}</td><td>-</td>
-                        </tr>
-                        <tr>
-                          <td className="bg-light">Click</td>
-                          <td>{fmt(s.cUni)}</td><td>{s.rate(s.cUni, s.delivered)}</td><td>{s.rate(s.cUni, s.oUni)}</td>
-                          <td>{fmt(s.cTot)}</td><td>{s.rate(s.cTot, s.delivered)}</td><td>{s.rate(s.cTot, s.oTot)}</td>
-                          <td>{fmt(s.cTot - s.cUni)}</td><td>{s.rate(s.cTot - s.cUni, s.delivered)}</td><td>{s.rate(s.cTot - s.cUni, s.oUni)}</td>
-                        </tr>
-                        <tr>
-                          <td className="bg-light">전환</td>
-                          <td>{fmt(s.vUni)}</td><td>{s.rate(s.vUni, s.delivered,3)}</td><td>{s.rate(s.vUni, s.oUni,3)}</td>
-                          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
-                        </tr>
-                        <tr>
-                          <td className="bg-light">수신거부</td>
-                          <td>{fmt(s.uUni)}</td><td>{s.rate(s.uUni, s.delivered,3)}</td><td>{s.rate(s.uUni, s.oUni,3)}</td>
-                          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
-
-      {showModal && <PasteModal onClose={() => setShowModal(false)} onSubmit={handleTextSubmit} />}
+    <div ref={menuRef} style={menuStyle} onContextMenu={e=>e.preventDefault()}>
+      {item('save',
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+        '이미지 저장', onSave
+      )}
+      {item('copy',
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
+        '클립보드에 복사', onCopy
+      )}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+/* ══════════════════ App ══════════════════ */
+function App() {
+  // 탭: 'edm' | 'kakao'
+  const [activeTab, setActiveTab] = useState('edm');
+
+  // 우클릭 컨텍스트 메뉴
+  const [ctxMenu, setCtxMenu] = useState(null); // {x, y}
+
+  function openCtxMenu(e) {
+    e.preventDefault();
+    // 화면 경계 보정 (메뉴 너비 160px, 높이 ~90px)
+    const x = Math.min(e.clientX, window.innerWidth  - 172);
+    const y = Math.min(e.clientY, window.innerHeight - 100);
+    setCtxMenu({x, y});
+  }
+
+  function saveEdmImage() {
+    captureElement('main-report-capture').then(canvas => {
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = '성과분석리포트.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
+  function copyEdmImage() {
+    captureElement('main-report-capture').then(canvas => {
+      if (!canvas) return;
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        try {
+          const item = new ClipboardItem({ 'image/png': blob });
+          navigator.clipboard.write([item])
+            .then(() => alert('클립보드에 복사되었습니다!\n(Ctrl+V로 바로 붙여넣기 가능)'))
+            .catch(() => alert('브라우저 권한 문제로 클립보드 복사에 실패했습니다.'));
+        } catch(err) { console.error(err); }
+      }, 'image/png');
+    });
+  }
+
+  // eDM 상태
+  const [slots,     setSlots]     = useState([]);
+  const [editData,  setEditData]  = useState(null);
+  const [showRawId, setShowRawId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [edmInput,  setEdmInput]  = useState("");
+  const [edmDrag,   setEdmDrag]   = useState(false);
+
+  // CSV(카카오) 상태
+  const [csvData,       setCsvData]       = useState(null);
+  const [selectedTags1, setSelectedTags1] = useState([]);
+  const [selectedTags2, setSelectedTags2] = useState([]);
+  const [tags1,         setTags1]         = useState([]);
+  const [tags2,         setTags2]         = useState([]);
+  const [tags3,         setTags3]         = useState([]);
+  const [kakaoInput,    setKakaoInput]    = useState("");
+  const [kakaoDrag,     setKakaoDrag]     = useState(false);
+
+  const doneSlots = slots.filter(s=>s.parsed);
+  const doneCount = doneSlots.length;
+  const canAddMore = slots.length < MAX_SLOTS;
+
+  useEffect(() => {
+    if (doneSlots.length>0) setEditData(JSON.parse(JSON.stringify(mergeReports(doneSlots.map(s=>s.parsed)))));
+    else setEditData(null);
+  }, [slots]);
+
+  /* ── eDM 핸들러 ── */
+  function handleEdmSubmit(rawText) {
+    const parsed = parseReport(rawText);
+    setSlots(prev=>[...prev,{id:Date.now()+Math.random(),rawText,parsed}]);
+    setEdmInput("");
+    setShowModal(false);
+  }
+
+  function handleEdmDrop(e) {
+    e.preventDefault(); setEdmDrag(false);
+    const file = e.dataTransfer.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{ handleEdmSubmit(ev.target.result.trim()); };
+    reader.readAsText(file);
+  }
+
+  function resetEdm() { setSlots([]); setEditData(null); setShowRawId(null); setEdmInput(""); }
+
+  /* ── 카카오 CSV 핸들러 ── */
+  function handleKakaoSubmit(rawText) {
+    const csv = parseCSV(rawText);
+    if (!csv) { alert("올바른 CSV 형식이 아닙니다. groupTag, date 컬럼이 필요합니다."); return; }
+    setCsvData(csv);
+    const soTags = csv.tags.filter(t=>t.startsWith('SO')||t.startsWith('SS')||t.includes('-SS-')||t.includes('TEST'));
+    const atTags = csv.tags.filter(t=>t.startsWith('AT')||t.includes('-AT-')||t.includes('TEST'));
+    setTags1(soTags); setTags2(atTags);
+    setSelectedTags1(soTags.length>0?[soTags[0]]:[]);
+    setSelectedTags2(atTags.length>0?[atTags[0]]:[]);
+    setTags3(csv.tags);
+    setKakaoInput("");
+  }
+
+  function handleKakaoDrop(e) {
+    e.preventDefault(); setKakaoDrag(false);
+    const file = e.dataTransfer.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{ handleKakaoSubmit(ev.target.result.trim()); };
+    reader.readAsText(file);
+  }
+
+  function resetKakao() {
+    setCsvData(null); setSelectedTags1([]); setSelectedTags2([]);
+    setTags1([]); setTags2([]); setTags3([]); setKakaoInput("");
+  }
+
+  const toggleTag=(setter,current)=>(tag)=>{
+    if(current.includes(tag)) setter(current.filter(t=>t!==tag));
+    else setter([...current,tag]);
+  };
+
+  /* ── Excel 다운로드 ── */
+  function downloadExcel() {
+    if (!editData) return;
+    const d=editData;
+    const delivered=d.delivered??d.totalSent;
+    const uniqueOpens=d.opens?.unique; const uniqueClicks=d.clicks?.unique;
+    const calcTotalSent=(delivered!=null&&d.bounces?.total!=null)?delivered+d.bounces.total:d.totalSent;
+    const calcDidNotOpen=(delivered!=null&&uniqueOpens!=null)?delivered-uniqueOpens:d.didNotOpen;
+    const calcDidNotClick=(delivered!=null&&uniqueClicks!=null)?delivered-uniqueClicks:d.didNotClick;
+    const r=(n,den,dec=2)=>(n!=null&&den)?+((n/den)*100).toFixed(dec):null;
+
+    const rows=[
+      ["분류","항목","전체 수","고유 수","비율(%)","비고"],
+      ["요약","총 발송 건수",calcTotalSent,null,null,null],
+      ["요약","총 전송 성공 건수",delivered,null,r(delivered,calcTotalSent,3),null],
+      ["요약","반송 총 건수",d.bounces?.total??null,null,r(d.bounces?.total,calcTotalSent),null],
+      ["요약","  하드 바운스",d.bounces?.hard??null,null,r(d.bounces?.hard,d.bounces?.total),null],
+      ["요약","  블록 바운스",d.bounces?.block??null,null,r(d.bounces?.block,d.bounces?.total),null],
+      ["요약","  소프트 바운스",d.bounces?.soft??null,null,r(d.bounces?.soft,d.bounces?.total),null],
+      ["활동 지표","오픈 (Opens)",d.opens?.total??null,uniqueOpens??null,r(uniqueOpens,delivered),"고유 발송 수 대비"],
+      ["활동 지표","클릭 (Clicks)",d.clicks?.total??null,d.clicks?.unique??null,r(d.clicks?.unique,uniqueOpens),"고유 오픈 수 대비"],
+      ["활동 지표","전환 (Conversions)",null,d.conversions?.unique??d.conversions?.total??null,r(d.conversions?.unique??d.conversions?.total,delivered,3),d.conversionAmount!=null?`₩${d.conversionAmount.toLocaleString("ko-KR")}`:"고유 발송 수 대비"],
+      ["활동 지표","구독 취소",null,d.unsubscribes?.unique??null,r(d.unsubscribes?.unique,delivered,3),"고유 발송 수 대비"],
+      ["미참여","오픈하지 않은 고객",null,calcDidNotOpen??null,r(calcDidNotOpen,delivered),""],
+      ["미참여","클릭하지 않은 고객",null,calcDidNotClick??null,r(calcDidNotClick,delivered),""],
+    ];
+
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"]=[{wch:12},{wch:32},{wch:14},{wch:14},{wch:12},{wch:18}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"성과 리포트");
+    XLSX.writeFile(wb,`${doneCount>1?`통합 성과 리포트 (${doneCount}개 합산)`:"이메일 성과 리포트"}.xlsx`);
+  }
+
+  const copyTableToClipboard=(tableId,skipFirstCol=false)=>{
+    const table=document.getElementById(tableId); if(!table) return;
+    let text="";
+    table.querySelectorAll("tbody tr").forEach(row=>{
+      let cols=Array.from(row.querySelectorAll("th,td"));
+      if(skipFirstCol) cols=cols.slice(1);
+      text+=cols.map(c=>c.innerText).join("\t")+"\n";
+    });
+    navigator.clipboard.writeText(text).then(()=>alert("복사되었습니다. 엑셀에 붙여넣으세요!"));
+  };
+
+  const getSummaryData=()=>{
+    if (!editData) return null;
+    const d=editData;
+    const totalSent=(d.delivered||0)+(d.bounces?.total||0)||d.totalSent||0;
+    const delivered=d.delivered||0; const bTotal=d.bounces?.total||0;
+    const bHard=d.bounces?.hard||0; const bBlock=d.bounces?.block||0; const bSoft=d.bounces?.soft||0;
+    const oUni=d.opens?.unique||0; const oTot=d.opens?.total||0;
+    const cUni=d.clicks?.unique||0; const cTot=d.clicks?.total||0;
+    const vUni=d.conversions?.unique||d.conversions?.total||0; const uUni=d.unsubscribes?.unique||0;
+    const rate=(n,den,dec=2)=>den?((n/den)*100).toFixed(dec)+"%":(0).toFixed(dec)+"%";
+    return {totalSent,delivered,bTotal,bHard,bBlock,bSoft,oUni,oTot,cUni,cTot,vUni,uUni,rate};
+  };
+  const s=getSummaryData();
+
+  const reportTitle=doneCount>1
+    ?`통합 성과 분석 리포트 (리포트 ${doneCount}개 합산)`
+    :doneCount===1
+      ?(toKoreanDate(doneSlots[0].parsed?.publishedOn)?`eDM 성과 분석 리포트 (${toKoreanDate(doneSlots[0].parsed?.publishedOn)})`:"eDM 성과 분석 리포트")
+      :"eDM 성과 분석 리포트";
+
+  const emptyCount=MAX_SLOTS-slots.length-(canAddMore?1:0);
+
+  /* ══ 렌더 ══ */
+  return (
+    <div style={{minHeight:"100vh",background:"#F2F4F6"}}>
+
+      {/* ── 탭 바 ── */}
+      <div className="tab-bar">
+        <div className="tab-logo">📊 GP 리포트 분석기</div>
+        <button
+          className={`tab-btn${activeTab==='edm'?' active':''}${doneCount>0?' has-data':''}`}
+          onClick={()=>setActiveTab('edm')}>
+          <span className="tab-dot"/>
+          eDM
+          {doneCount>0 && <span className="tab-badge">{doneCount}</span>}
+        </button>
+        <button
+          className={`tab-btn${activeTab==='kakao'?' active':''}${csvData?' has-data':''}`}
+          onClick={()=>setActiveTab('kakao')}>
+          <span className="tab-dot"/>
+          카카오톡
+          {csvData && <span className="tab-badge" style={{background:"#F59E0B"}}>CSV</span>}
+        </button>
+      </div>
+
+      {/* ── 패널 컨테이너 ── */}
+      <div style={{maxWidth:"940px",margin:"0 auto",padding:"2rem 1.5rem"}}>
+
+        {/* ════ eDM 탭 ════ */}
+        {activeTab==='edm' && (
+          <div className="tab-panel">
+
+            {/* 입력 영역: 슬롯 없을 때 */}
+            {slots.length===0 && (
+              <div
+                style={{
+                  background:edmDrag?"#EEF2FF":"#fff", borderRadius:"24px",
+                  boxShadow:"0 4px 24px rgba(0,0,0,0.08)", padding:"2.5rem 2rem",
+                  border:edmDrag?"2px dashed #4F46E5":"2px solid transparent", transition:"all 0.2s",
+                  marginBottom:"0"
+                }}
+                onDragOver={e=>{e.preventDefault();setEdmDrag(true);}}
+                onDragLeave={e=>{e.preventDefault();setEdmDrag(false);}}
+                onDrop={handleEdmDrop}>
+                <p style={{margin:"0 0 6px",fontSize:"20px",fontWeight:"800",color:"#333D4B",letterSpacing:"-0.03em"}}>
+                  eDM 발송 결과 분석
+                </p>
+                <p style={{margin:"0 0 20px",fontSize:"14px",color:"#8B95A1",lineHeight:1.6}}>
+                  분석할 리포트 텍스트를 입력해 주세요. <span style={{color:"#C4C9D0"}}>(최대 3개까지 합쳐서 분석할 수 있어요.)</span>
+                </p>
+                <textarea className="paste-textarea" value={edmInput} onChange={e=>setEdmInput(e.target.value)}
+                  placeholder={"\n예시:\n\nName: Campaign ABC\nLast Published On: 2026-04-10\nTotal Sent: 65,246\nDelivery Rate: 99.635%"}
+                  onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&edmInput.trim()){handleEdmSubmit(edmInput.trim());}}}
+                  style={{backgroundColor:edmDrag?"#fff":"#FAFAFA",minHeight:"220px"}}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"14px"}}>
+                  <span style={{fontSize:"11px",color:"#C4C9D0"}}>Ctrl+Enter로 바로 분석</span>
+                  <button className="analyze-btn" onClick={()=>{if(edmInput.trim())handleEdmSubmit(edmInput.trim());}} disabled={!edmInput.trim()}>분석하기</button>
+                </div>
+              </div>
+            )}
+
+            {/* 슬롯 있을 때 */}
+            {slots.length>0 && (
+              <>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}>
+                  <p style={{margin:0,fontSize:"14px",fontWeight:"700",color:"#8B95A1"}}>리포트 목록</p>
+                  <div style={{display:"flex",gap:"8px"}}>
+                    {doneCount>0&&(
+                      <button className="retry-btn" onClick={downloadExcel} style={{display:"flex",alignItems:"center",gap:"5px"}}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 01-2-2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        엑셀 다운로드
+                      </button>
+                    )}
+                    <button className="retry-btn" onClick={resetEdm}>처음으로</button>
+                  </div>
+                </div>
+
+                <div style={{display:"flex",gap:"12px",marginBottom:"22px"}}>
+                  {slots.map((slot,i)=>(
+                    <SlotCard key={slot.id} slot={slot} index={i} onRemove={()=>{setSlots(prev=>prev.filter(s=>s.id!==slot.id));if(showRawId===slot.id)setShowRawId(null);}}
+                      showRaw={showRawId===slot.id} onToggleRaw={()=>setShowRawId(showRawId===slot.id?null:slot.id)}/>
+                  ))}
+                  {canAddMore&&(
+                    <div className="add-slot-card" onClick={()=>setShowModal(true)}>
+                      <div style={{width:"36px",height:"36px",background:"#EBEBEB",borderRadius:"10px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                      </div>
+                      <span style={{fontSize:"12px",fontWeight:"700"}}>리포트 추가 ({slots.length}/{MAX_SLOTS})</span>
+                    </div>
+                  )}
+                  {Array.from({length:Math.max(0,emptyCount)}).map((_,i)=><div key={i} className="empty-slot"/>)}
+                </div>
+
+                {doneCount>1&&(
+                  <div style={{textAlign:"center"}}>
+                    <span className="sum-badge">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                      리포트 {doneCount}개의 수치를 합산한 결과입니다
+                    </span>
+                  </div>
+                )}
+
+                {doneCount>0&&editData&&(
+                  <>
+                    <div id="main-report-capture"
+                      onContextMenu={openCtxMenu}
+                      title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
+                      style={{padding:"16px",margin:"0 -16px",background:"#F2F4F6",borderRadius:"24px",cursor:"context-menu"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"}}>
+                        <h2 style={{margin:0,fontSize:"18px",fontWeight:"800",color:"#333D4B",letterSpacing:"-0.02em",paddingLeft:"8px"}}>{reportTitle}</h2>
+                      </div>
+                      <ReportTable data={editData} onDataChange={setEditData}/>
+                    </div>
+                    <div style={{marginTop:"8px",paddingRight:"4px"}}>
+                      <span style={{fontSize:"11px",color:"#C4C9D0"}}>숫자 셀을 클릭하면 직접 수정 · 리포트 영역 우클릭 시 이미지 저장/복사</span>
+                    </div>
+
+                    {s&&(
+                      <div className="summary-section" style={{marginTop:"30px"}}>
+                        <div className="summary-header">
+                          <span className="summary-title">SUMMARY</span>
+                          <button className="copy-btn" onClick={()=>{
+                            const table=document.getElementById('table-summary');
+                            const row=table?.querySelector('tbody tr'); if(!row) return;
+                            const text=Array.from(row.querySelectorAll('td')).map(td=>td.innerText).join('\t');
+                            navigator.clipboard.writeText(text).then(()=>alert('SUMMARY 행이 복사되었습니다.'));
+                          }}>행 복사하기</button>
+                        </div>
+                        <table className="stable" id="table-summary">
+                          <thead><tr><th>성공</th><th>반송</th><th>오픈</th><th>클릭</th></tr></thead>
+                          <tbody>
+                            <tr>
+                              <td style={{fontWeight:"700",color:"#333D4B"}}>{fmt(s.delivered)}</td>
+                              <td style={{fontWeight:"700",color:"#333D4B"}}>{fmt(s.bTotal)}</td>
+                              <td style={{fontWeight:"700",color:"#333D4B"}}>{fmt(s.oUni)}</td>
+                              <td style={{fontWeight:"700",color:"#333D4B"}}>{fmt(s.cUni)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+
+                        <div className="summary-header">
+                          <span className="summary-title">발송 결과</span>
+                          <button className="copy-btn" onClick={()=>copyTableToClipboard('table-send')}>표 복사하기</button>
+                        </div>
+                        <table className="stable" id="table-send">
+                          <thead>
+                            <tr><th>대상수</th><th>건수</th><th>비율</th><th>성공</th><th>성공률</th><th>반송</th><th>반송률</th><th>소프트+블록</th><th>소프트+블록률</th><th>하드</th><th>하드률</th></tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>{fmt(s.totalSent)}</td><td>{fmt(s.totalSent)}</td><td>100.00%</td>
+                              <td>{fmt(s.delivered)}</td><td>{s.rate(s.delivered,s.totalSent)}</td>
+                              <td>{fmt(s.bTotal)}</td><td>{s.rate(s.bTotal,s.totalSent)}</td>
+                              <td>{fmt(s.bSoft+s.bBlock)}</td><td>{s.rate(s.bSoft+s.bBlock,s.totalSent)}</td>
+                              <td>{fmt(s.bHard)}</td><td>{s.rate(s.bHard,s.totalSent)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+
+                        <div className="summary-header">
+                          <span className="summary-title">반응 결과</span>
+                          <button className="copy-btn" onClick={()=>copyTableToClipboard('table-res',true)}>표 복사하기</button>
+                        </div>
+                        <table className="stable" id="table-res">
+                          <thead>
+                            <tr><th>항목</th><th>고유수</th><th>발송대비</th><th>오픈대비</th><th>전체수</th><th>전체발송대비</th><th>오픈대비</th><th>중복</th><th>중복발송대비</th><th>중복오픈대비</th></tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="bg-light">Open</td>
+                              <td>{fmt(s.oUni)}</td><td>{s.rate(s.oUni,s.delivered)}</td><td>-</td>
+                              <td>{fmt(s.oTot)}</td><td>{s.rate(s.oTot,s.delivered)}</td><td>-</td>
+                              <td>{fmt(s.oTot-s.oUni)}</td><td>{s.rate(s.oTot-s.oUni,s.delivered)}</td><td>-</td>
+                            </tr>
+                            <tr>
+                              <td className="bg-light">Click</td>
+                              <td>{fmt(s.cUni)}</td><td>{s.rate(s.cUni,s.delivered)}</td><td>{s.rate(s.cUni,s.oUni)}</td>
+                              <td>{fmt(s.cTot)}</td><td>{s.rate(s.cTot,s.delivered)}</td><td>{s.rate(s.cTot,s.oTot)}</td>
+                              <td>{fmt(s.cTot-s.cUni)}</td><td>{s.rate(s.cTot-s.cUni,s.delivered)}</td><td>{s.rate(s.cTot-s.cUni,s.oUni)}</td>
+                            </tr>
+                            <tr>
+                              <td className="bg-light">전환</td>
+                              <td>{fmt(s.vUni)}</td><td>{s.rate(s.vUni,s.delivered,3)}</td><td>{s.rate(s.vUni,s.oUni,3)}</td>
+                              <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+                            </tr>
+                            <tr>
+                              <td className="bg-light">수신거부</td>
+                              <td>{fmt(s.uUni)}</td><td>{s.rate(s.uUni,s.delivered,3)}</td><td>{s.rate(s.uUni,s.oUni,3)}</td>
+                              <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ════ 카카오 탭 ════ */}
+        {activeTab==='kakao' && (
+          <div className="tab-panel">
+
+            {/* CSV 없을 때: 입력 */}
+            {!csvData && (
+              <div
+                style={{
+                  background:kakaoDrag?"#EEF2FF":"#fff", borderRadius:"24px",
+                  boxShadow:"0 4px 24px rgba(0,0,0,0.08)", padding:"2.5rem 2rem",
+                  border:kakaoDrag?"2px dashed #4F46E5":"2px solid transparent", transition:"all 0.2s",
+                }}
+                onDragOver={e=>{e.preventDefault();setKakaoDrag(true);}}
+                onDragLeave={e=>{e.preventDefault();setKakaoDrag(false);}}
+                onDrop={handleKakaoDrop}>
+                <p style={{margin:"0 0 6px",fontSize:"20px",fontWeight:"800",color:"#333D4B",letterSpacing:"-0.03em"}}>
+                  알림톡·친구톡 발송 결과 분석
+                </p>
+                <p style={{margin:"0 0 20px",fontSize:"14px",color:"#8B95A1",lineHeight:1.6}}>
+                  CSV 파일을 업로드하거나 내용을 직접 붙여넣어 주세요.
+                </p>
+                <textarea className="paste-textarea" value={kakaoInput} onChange={e=>setKakaoInput(e.target.value)}
+                  placeholder={"\n예시:\n\ngroupTag,date,successCount,validFailCount,readCount,button1,...\nAT,20260403,16,0,5,2,..."}
+                  onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&kakaoInput.trim()){handleKakaoSubmit(kakaoInput.trim());}}}
+                  style={{backgroundColor:kakaoDrag?"#fff":"#FAFAFA",minHeight:"220px"}}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"14px"}}>
+                  <span style={{fontSize:"11px",color:"#C4C9D0"}}>Ctrl+Enter로 바로 분석</span>
+                  <button className="analyze-btn" onClick={()=>{if(kakaoInput.trim())handleKakaoSubmit(kakaoInput.trim());}} disabled={!kakaoInput.trim()}>분석하기</button>
+                </div>
+              </div>
+            )}
+
+            {/* CSV 있을 때: 분석 결과 */}
+            {csvData && (
+              <>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px"}}>
+                  <p style={{margin:0,fontSize:"18px",fontWeight:"800",color:"#333D4B"}}>카카오톡 메시지 발송 성과 분석</p>
+                  <button className="retry-btn" onClick={resetKakao}>처음으로</button>
+                </div>
+
+                <CSVTable id="csv-table-1"
+                  title={<><span style={{color:"#2563EB"}}>쌤소나이트</span> 캠페인 발송 결과 리포트 (위클리 리포트용)</>}
+                  data={csvData.data} tags={tags1} selectedTags={selectedTags1}
+                  onTagToggle={toggleTag(setSelectedTags1,selectedTags1)}
+                  onResetTags={()=>setSelectedTags1([])}/>
+                <CSVTable id="csv-table-2"
+                  title={<><span style={{color:"#C53030"}}>아메리칸 투어리스트</span> 캠페인 발송 결과 리포트 (위클리 리포트용)</>}
+                  data={csvData.data} tags={tags2} selectedTags={selectedTags2}
+                  onTagToggle={toggleTag(setSelectedTags2,selectedTags2)}
+                  onResetTags={()=>setSelectedTags2([])}/>
+                <DropdownDetailTable id="csv-table-3"
+                  title={<><span style={{color:"#CA8A04"}}>KakaoTalk</span> 캠페인 API 집계 (1,2차 리포트용)</>}
+                  data={csvData.data} tags={tags3}/>
+                <KakaoExternalReport id="kakao-external-report"
+                  title={<><span style={{color:"#10B981"}}>KakaoTalk</span> CJ StatusBoard</>}/>
+              </>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {showModal && <PasteModal onClose={()=>setShowModal(false)} onSubmit={handleEdmSubmit}/>}
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x} y={ctxMenu.y}
+          onSave={saveEdmImage}
+          onCopy={copyEdmImage}
+          onClose={()=>setCtxMenu(null)}/>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
