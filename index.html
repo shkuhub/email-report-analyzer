@@ -61,10 +61,12 @@
       background: #F9FAFB; padding: 13px 16px; font-size: 12px;
       font-weight: 600; color: #8B95A1; text-align: center;
       letter-spacing: 0.04em; white-space: nowrap; border-bottom: 1px solid #E5E8EC;
+      line-height: 1.4; vertical-align: middle;
     }
     .rtable td {
       padding: 15px 16px; font-size: 13px; color: #333D4B;
       vertical-align: middle; border-bottom: 1px solid #F2F4F6;
+      line-height: 1.4;
     }
     .td-cat {
       text-align: center !important; font-weight: 700; font-size: 12px !important;
@@ -78,7 +80,7 @@
       border-right: 1px solid #F2F4F6 !important; }
     .td-rate { text-align: center !important; font-variant-numeric: tabular-nums;
       font-weight: 700; border-right: 1px solid #F2F4F6 !important; }
-    .td-note { text-align: center !important; font-size: 12px !important; color: #8B95A1 !important; }
+    .td-note { text-align: center !important; font-size: 12px !important; color: #8B95A1 !important; vertical-align: middle !important; }
     .sec-top { border-top: 2px solid #E5E8EC !important; }
     .faint   { color: #C4C9D0 !important; }
     .bold    { font-weight: 700; }
@@ -210,52 +212,270 @@
 const { useState, useEffect, useRef } = React;
 const MAX_SLOTS = 3;
 
-/* ── 이미지 캡처 (고정 너비, 페이지 크기 무관) ── */
-const captureElement = (elementId, fixedWidth = 900) => {
+/* ── 이미지 캡처 (고정 너비, 페이지 크기 무관, 셀 세로 중앙 보장) ── */
+/* ── 테이블을 Canvas에 직접 그려서 이미지 생성 (수직 정렬 완벽 보장) ── */
+const captureElement = (elementId, fixedWidth = 960) => {
   return new Promise((resolve) => {
     const el = document.getElementById(elementId);
     if (!el) { resolve(null); return; }
 
-    // 원본 스타일 저장
-    const origWidth   = el.style.width;
-    const origMinW    = el.style.minWidth;
-    const origMaxW    = el.style.maxWidth;
-    const origPos     = el.style.position;
-    const origLeft    = el.style.left;
-    const origTop     = el.style.top;
-    const origZIndex  = el.style.zIndex;
+    const SCALE   = 2;          // 레티나 해상도
+    const PAD     = 20;         // 캡처 영역 상하좌우 여백
+    const FONT    = 'Noto Sans KR, Apple SD Gothic Neo, sans-serif';
 
-    // 고정 너비로 오프스크린 렌더
-    el.style.width    = fixedWidth + 'px';
-    el.style.minWidth = fixedWidth + 'px';
-    el.style.maxWidth = fixedWidth + 'px';
-    el.style.position = 'fixed';
-    el.style.left     = '-9999px';
-    el.style.top      = '0px';
-    el.style.zIndex   = '-1';
-
-    // 레이아웃 안정화 후 캡처
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.html2canvas(el, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          width: fixedWidth,
-          windowWidth: fixedWidth,
-          useCORS: true,
-        }).then(canvas => {
-          // 원복
-          el.style.width    = origWidth;
-          el.style.minWidth = origMinW;
-          el.style.maxWidth = origMaxW;
-          el.style.position = origPos;
-          el.style.left     = origLeft;
-          el.style.top      = origTop;
-          el.style.zIndex   = origZIndex;
-          resolve(canvas);
-        });
-      });
+    // ── 1단계: 임시로 overflow 해제해 실제 크기 측정
+    const scrollEls = Array.from(el.querySelectorAll('*')).filter(n => {
+      const cs = getComputedStyle(n);
+      return cs.overflowX === 'auto' || cs.overflowX === 'scroll'
+          || cs.overflowY === 'auto' || cs.overflowY === 'scroll';
     });
+    const scrollOrig = scrollEls.map(n => ({
+      ox: n.style.overflowX, oy: n.style.overflowY,
+      w:  n.style.width,     mw: n.style.maxWidth,
+    }));
+    scrollEls.forEach(n => {
+      n.style.overflowX = 'visible'; n.style.overflowY = 'visible';
+      n.style.width = 'auto'; n.style.maxWidth = 'none';
+    });
+
+    const savedStyle = { pos: el.style.position, left: el.style.left,
+      top: el.style.top, z: el.style.zIndex,
+      w: el.style.width, mw: el.style.minWidth, mx: el.style.maxWidth };
+    el.style.position = 'fixed'; el.style.left = '-99999px';
+    el.style.top = '0'; el.style.zIndex = '-1';
+    el.style.width = el.style.minWidth = el.style.maxWidth = fixedWidth + 'px';
+
+    // ── 2단계: 레이아웃 안정화 후 DOM 읽기
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+
+      // 테이블 찾기 — 여러 개면 첫 번째 우선, 없으면 html2canvas 폴백
+      const tables = Array.from(el.querySelectorAll('table'));
+      if (tables.length === 0) {
+        // 폴백: 테이블 없는 영역은 html2canvas 사용
+        const aw = Math.max(fixedWidth, el.scrollWidth + 32);
+        el.style.width = el.style.minWidth = el.style.maxWidth = aw + 'px';
+        window.html2canvas(el, { scale: SCALE, backgroundColor:'#fff', width: aw, windowWidth: aw, useCORS:true, logging:false })
+          .then(canvas => {
+            // 원복
+            scrollEls.forEach((n,i) => { n.style.overflowX=scrollOrig[i].ox; n.style.overflowY=scrollOrig[i].oy; n.style.width=scrollOrig[i].w; n.style.maxWidth=scrollOrig[i].mw; });
+            Object.assign(el.style, { position:savedStyle.pos, left:savedStyle.left, top:savedStyle.top, zIndex:savedStyle.z, width:savedStyle.w, minWidth:savedStyle.mw, maxWidth:savedStyle.mx });
+            resolve(canvas);
+          });
+        return;
+      }
+
+      // ── 3단계: 모든 테이블의 셀 데이터 수집
+      const CELL_PAD_V = 11;  // 셀 상하 내부 패딩 (픽셀)
+      const CELL_PAD_H = 14;  // 셀 좌우 내부 패딩 (픽셀)
+      const ROW_H_MIN  = 38;  // 최소 행 높이 (픽셀)
+
+      // 배경색 추출 헬퍼
+      function getBg(cell) {
+        let n = cell;
+        while (n && n !== el) {
+          const bg = getComputedStyle(n).backgroundColor;
+          if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg;
+          n = n.parentElement;
+        }
+        return '#ffffff';
+      }
+
+      // 셀 구조 수집: [{text, color, bg, bold, fontSize, align, colSpan, rowSpan}]
+      function collectTableData(table) {
+        const tRows = Array.from(table.querySelectorAll('tr'));
+        // 병합 셀 처리를 위한 그리드
+        const grid = [];
+        tRows.forEach((tr, ri) => {
+          if (!grid[ri]) grid[ri] = [];
+          let ci = 0;
+          Array.from(tr.querySelectorAll('td, th')).forEach(cell => {
+            while (grid[ri][ci]) ci++;
+            const cs       = getComputedStyle(cell);
+            const colSpan  = cell.colSpan  || 1;
+            const rowSpan  = cell.rowSpan  || 1;
+            const text     = cell.innerText.trim();
+            const color    = cs.color || '#333D4B';
+            const bg       = getBg(cell);
+            const bold     = parseInt(cs.fontWeight) >= 600;
+            const fontSize = Math.round(parseFloat(cs.fontSize) || 13);
+            const align    = cs.textAlign === 'left' ? 'left' : 'center';
+            const info     = { text, color, bg, bold, fontSize, align, colSpan, rowSpan };
+            for (let r = ri; r < ri + rowSpan; r++) {
+              if (!grid[r]) grid[r] = [];
+              for (let c = ci; c < ci + colSpan; c++) {
+                grid[r][c] = (r === ri && c === ci) ? info : null; // null = merged
+              }
+            }
+            ci += colSpan;
+          });
+        });
+        return grid;
+      }
+
+      // 캔버스 크기 계산
+      const allGrids = tables.map(collectTableData);
+
+      // 열 너비 계산: 각 테이블별로 독립
+      function calcColWidths(grid, availW) {
+        const numCols = Math.max(...grid.map(r => r.length));
+        // 동일 너비 배분
+        const base = Math.floor(availW / numCols);
+        return Array(numCols).fill(base);
+      }
+
+      // 행 높이 계산
+      function calcRowHeights(grid) {
+        return grid.map(row => {
+          let maxLines = 1;
+          row.forEach(cell => {
+            if (!cell) return;
+            const lines = cell.text.split('\n').length;
+            maxLines = Math.max(maxLines, lines);
+          });
+          return Math.max(ROW_H_MIN, maxLines * (13 + 4) + CELL_PAD_V * 2);
+        });
+      }
+
+      const innerW = Math.max(fixedWidth, tables[0].scrollWidth) - PAD * 2;
+
+      // 각 테이블 레이아웃 계산
+      const layouts = allGrids.map((grid, ti) => {
+        const colW = calcColWidths(grid, innerW);
+        const rowH = calcRowHeights(grid);
+        const totalW = colW.reduce((a,b)=>a+b,0);
+        const totalH = rowH.reduce((a,b)=>a+b,0);
+        return { grid, colW, rowH, totalW, totalH };
+      });
+
+      // 비-테이블 텍스트 높이 계산 (요약 불릿 등)
+      function collectNonTableNodes(rootEl, tables) {
+        const tableSet = new Set(tables);
+        const result = [];
+        function walk(node) {
+          if (tableSet.has(node)) return;
+          if (node.nodeType === 3 && node.textContent.trim()) {
+            // 텍스트 노드는 무시 (부모에서 처리)
+          } else if (node.nodeType === 1) {
+            const tag = node.tagName.toLowerCase();
+            if (['li','p','div','h1','h2','h3','h4','h5','h6'].includes(tag)) {
+              const txt = node.innerText?.trim();
+              if (txt) {
+                const cs = getComputedStyle(node);
+                result.push({ text: txt, fontSize: parseFloat(cs.fontSize)||13,
+                  bold: parseInt(cs.fontWeight)>=600, color: cs.color||'#333D4B' });
+                return;
+              }
+            }
+            Array.from(node.childNodes).forEach(walk);
+          }
+        }
+        Array.from(rootEl.childNodes).forEach(walk);
+        return result;
+      }
+
+      const extraNodes = collectNonTableNodes(el, tables);
+      const EXTRA_LINE_H = 24;
+      const extraH = extraNodes.length > 0 ? extraNodes.length * EXTRA_LINE_H + 16 : 0;
+
+      const totalH = layouts.reduce((s,l)=>s+l.totalH+16,0) + extraH + PAD*2;
+      const totalW = Math.max(...layouts.map(l=>l.totalW)) + PAD*2;
+
+      // ── 4단계: Canvas에 직접 그리기
+      const cvs = document.createElement('canvas');
+      cvs.width  = totalW  * SCALE;
+      cvs.height = totalH  * SCALE;
+      const ctx  = cvs.getContext('2d');
+      ctx.scale(SCALE, SCALE);
+
+      // 배경
+      ctx.fillStyle = '#F9FAFB';
+      ctx.fillRect(0, 0, totalW, totalH);
+
+      let curY = PAD;
+
+      layouts.forEach(({ grid, colW, rowH, totalW: tW }, ti) => {
+        const startX = PAD;
+        // 각 셀 그리기
+        const rowStartY = [];
+        let ry = curY;
+        rowH.forEach((h,i) => { rowStartY[i]=ry; ry+=h; });
+
+        // 셀 배경 + 텍스트
+        grid.forEach((row, ri) => {
+          let cx = startX;
+          row.forEach((cell, ci) => {
+            const cw = colW[ci] || 0;
+            if (cell === null) { cx+=cw; return; } // 병합된 서브셀
+            // 병합 너비
+            let spanW = 0;
+            for (let s=0; s<cell.colSpan; s++) spanW += colW[ci+s] || cw;
+            // 병합 높이
+            let spanH = 0;
+            for (let s=0; s<cell.rowSpan; s++) spanH += rowH[ri+s] || rowH[ri];
+
+            // 배경
+            ctx.fillStyle = cell.bg;
+            ctx.fillRect(cx, rowStartY[ri], spanW, spanH);
+
+            // 구분선
+            ctx.strokeStyle = '#E5E8EC';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(cx + 0.25, rowStartY[ri] + 0.25, spanW - 0.5, spanH - 0.5);
+
+            // 텍스트
+            const fontSize = cell.fontSize;
+            ctx.font = `${cell.bold?'700':'400'} ${fontSize}px ${FONT}`;
+            ctx.fillStyle = cell.color;
+            ctx.textBaseline = 'middle';
+
+            const lines = cell.text.split('\n').filter(l=>l.trim());
+            const lineH  = fontSize + 4;
+            const totalTextH = lines.length * lineH;
+            const textStartY = rowStartY[ri] + spanH/2 - totalTextH/2 + lineH/2;
+
+            lines.forEach((line, li) => {
+              const ty = textStartY + li * lineH;
+              if (cell.align === 'left') {
+                ctx.textAlign = 'left';
+                ctx.fillText(line, cx + CELL_PAD_H, ty);
+              } else {
+                ctx.textAlign = 'center';
+                ctx.fillText(line, cx + spanW/2, ty);
+              }
+            });
+
+            cx += cw;
+          });
+        });
+
+        curY += rowH.reduce((a,b)=>a+b,0) + 16;
+      });
+
+      // 추가 텍스트 (요약 불릿 등)
+      if (extraNodes.length > 0) {
+        curY += 4;
+        extraNodes.forEach(node => {
+          ctx.font = `${node.bold?'700':'400'} ${node.fontSize}px ${FONT}`;
+          ctx.fillStyle = node.color;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('• ' + node.text, PAD + 8, curY + EXTRA_LINE_H/2);
+          curY += EXTRA_LINE_H;
+        });
+      }
+
+      // ── 5단계: 원복
+      scrollEls.forEach((n,i) => {
+        n.style.overflowX = scrollOrig[i].ox; n.style.overflowY = scrollOrig[i].oy;
+        n.style.width = scrollOrig[i].w; n.style.maxWidth = scrollOrig[i].mw;
+      });
+      Object.assign(el.style, {
+        position: savedStyle.pos, left: savedStyle.left, top: savedStyle.top,
+        zIndex: savedStyle.z, width: savedStyle.w, minWidth: savedStyle.mw, maxWidth: savedStyle.mx,
+      });
+
+      resolve(cvs);
+    }));
   });
 };
 
@@ -519,6 +739,17 @@ function ReportTable({ data, onDataChange }) {
     ref[keys[keys.length-1]]=val;
     onDataChange(next);
   }
+  function updateMulti(pairs) {
+    // pairs: [[path, val], ...]
+    const next=JSON.parse(JSON.stringify(data));
+    pairs.forEach(([path,val])=>{
+      const keys=path.split(".");
+      let ref=next;
+      for(let i=0;i<keys.length-1;i++) ref=ref[keys[i]];
+      ref[keys[keys.length-1]]=val;
+    });
+    onDataChange(next);
+  }
 
   const Cat  = ({children,rowSpan,secTop}) => <td rowSpan={rowSpan} className={`td-cat${secTop?" sec-top":""}`}>{children}</td>;
   const Lbl  = ({children,indent,secTop}) => <td className={`${indent?"td-lbl-i":"td-lbl"}${secTop?" sec-top":""}`}>{children}</td>;
@@ -588,8 +819,16 @@ function ReportTable({ data, onDataChange }) {
           </tr>
           <tr>
             <Lbl>전환 (Conversions)</Lbl>
-            <EN value={null} onSave={()=>{}} faint/>
-            <EN value={data.conversions?.unique??data.conversions?.total} bold onSave={v=>update("conversions.unique",v)}/>
+            <EN value={data.conversions?.total} bold onSave={v=>{
+              // 전체수 저장 → 고유수가 비어있으면 함께 채움
+              if(data.conversions?.unique==null) updateMulti([["conversions.total",v],["conversions.unique",v]]);
+              else update("conversions.total",v);
+            }}/>
+            <EN value={data.conversions?.unique??data.conversions?.total} bold onSave={v=>{
+              // 고유수 저장 → 전체수가 비어있으면 함께 채움
+              if(data.conversions?.total==null) updateMulti([["conversions.unique",v],["conversions.total",v]]);
+              else update("conversions.unique",v);
+            }}/>
             <Rate rate={calcRate(data.conversions?.unique??data.conversions?.total,delivered,3)}/>
             <EditableConvNote value={data.conversionAmount} onSave={v=>update("conversionAmount",v)}/>
           </tr>
@@ -779,7 +1018,7 @@ function CSVTable({ id, title, data, tags, selectedTags, onTagToggle, onResetTag
 }
 
 /* ── DropdownDetailTable ── */
-function DropdownDetailTable({ id, title, data, tags }) {
+function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
   const [selectedTag, setSelectedTag] = useState(tags[0]||"");
   const [startDate, setStartDate] = useState("");
   const [endDate,   setEndDate]   = useState("");
@@ -815,7 +1054,11 @@ function DropdownDetailTable({ id, title, data, tags }) {
     } else if(curr.friendType==='N') { f_total+=curr.validFailCount; }
   });
 
-  const dateStr=[...dateSet].join(', '), senderKeyStr=[...senderKeySet].join(', ');
+  const dateArr = [...dateSet].map(String).sort();
+  const dateStr = dateArr.length === 0 ? "-"
+    : dateArr.length === 1 ? dateArr[0]
+    : `${dateArr[0]} ~ ${dateArr[dateArr.length-1]}`;
+  const senderKeyStr=[...senderKeySet].join(', ');
   const msgSpecStr=[...msgSpecSet].join(', '), chatBubbleStr=[...chatBubbleSet].join(', ');
 
   let periodLabel="전체 기간";
@@ -828,8 +1071,17 @@ function DropdownDetailTable({ id, title, data, tags }) {
   const btn1Rate=r>0?((b1/r)*100).toFixed(1):"0.0";
   const img1Rate=r>0?((i1/r)*100).toFixed(1):"0.0";
 
+  const tdStyle = (bg, color, bold) => ({
+    padding:"12px", fontSize:"13px",
+    color: color||"#333D4B",
+    fontWeight: bold?"bold":"normal",
+    verticalAlign:"middle", textAlign:"center",
+    background: bg,
+  });
+
   return (
     <div style={{background:"#fff",padding:"24px",borderRadius:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:"24px"}}>
+      {/* 필터 컨트롤 — 캡처 제외 */}
       <div data-html2canvas-ignore="true" style={{background:"#FAFAFA",border:"1px solid #E5E8EC",borderRadius:"12px",padding:"18px",marginBottom:"20px",display:"flex",flexDirection:"column",gap:"14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
           <div style={{width:"70px",fontSize:"13px",fontWeight:"700",color:"#333D4B"}}>그룹 태그</div>
@@ -849,44 +1101,50 @@ function DropdownDetailTable({ id, title, data, tags }) {
           </div>
         </div>
       </div>
+
+      {/* 헤더 — 버튼 제거, 우클릭 힌트만 */}
       <div className="summary-header" style={{marginBottom:"16px"}}>
         <h3 className="summary-title">{title}</h3>
-        <button className="copy-btn" onClick={()=>downloadImage('kakao-report-capture','카카오톡_상세분석리포트')}
-          style={{display:"flex",alignItems:"center",gap:"4px",background:"#EEF2FF",color:"#4F46E5",border:"1px solid #C7D2FE"}}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-          </svg>
-          이미지 저장 및 복사
-        </button>
+        <span style={{fontSize:"11px",color:"#C4C9D0"}}>우클릭 → 이미지 저장/복사</span>
       </div>
-      <div id="kakao-report-capture" style={{background:"#fff",padding:"16px",margin:"-16px"}}>
+
+      {/* 캡처 대상 영역 */}
+      <div id="kakao-report-capture"
+        onContextMenu={onContextMenu}
+        title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
+        style={{background:"#F9FAFB",padding:"20px",margin:"-16px",cursor:"context-menu",borderRadius:"12px"}}>
         <div style={{borderRadius:"8px",border:"1px solid #E5E8EC",overflow:"hidden"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"center",tableLayout:"fixed"}} id={id}>
             <thead>
-              <tr><th colSpan="2" style={{background:"#822551",color:"#fff",padding:"12px",fontSize:"14px",fontWeight:"700"}}>{headerTitle}</th></tr>
+              <tr><th colSpan="2" style={{background:"#822551",color:"#fff",padding:"12px",fontSize:"14px",fontWeight:"700",verticalAlign:"middle",textAlign:"center"}}>{headerTitle}</th></tr>
               <tr>
-                <th style={{background:"#9A2B61",color:"#fff",padding:"10px",fontSize:"13px",width:"35%",borderRight:"1px solid rgba(255,255,255,0.2)"}}>키</th>
-                <th style={{background:"#9A2B61",color:"#fff",padding:"10px",fontSize:"13px",width:"65%"}}>값</th>
+                <th style={{background:"#9A2B61",color:"#fff",padding:"10px",fontSize:"13px",width:"35%",borderRight:"1px solid rgba(255,255,255,0.2)",verticalAlign:"middle",textAlign:"center"}}>키</th>
+                <th style={{background:"#9A2B61",color:"#fff",padding:"10px",fontSize:"13px",width:"65%",verticalAlign:"middle",textAlign:"center"}}>값</th>
               </tr>
             </thead>
             <tbody>
               {[
-                ["groupTag", selectedTag||"-"],["date",dateStr||"-"],["senderKey",senderKeyStr||"-"],
-                ["messageSpec",msgSpecStr||"-"],["chatBubbleType",chatBubbleStr||"-"],
-                ["successCount",fmt(s)],["validFailCount",fmt(f_total),"#EF4444",true],
-                ["readCount",fmt(r)],["button1",fmt(b1)],
-                ...(b2>0?[["button2",fmt(b2)]]:[]),
-                ["image1",fmt(i1)],
+                ["groupTag", selectedTag||"-"],
+                ["date", dateStr||"-"],
+                ["senderKey", senderKeyStr||"-"],
+                ["messageSpec", msgSpecStr||"-"],
+                ["chatBubbleType", chatBubbleStr||"-"],
+                ["successCount", fmt(s)],
+                ["validFailCount", fmt(f_total), "#EF4444", true],
+                ["readCount", fmt(r)],
+                ["button1", fmt(b1)],
+                ...(b2>0?[["button2", fmt(b2)]]:[]),
+                ["image1", fmt(i1)],
               ].map(([key,val,color,bold],idx)=>(
-                <tr key={key} style={{background:idx%2===0?"#F2F4F6":"#fff",borderBottom:"1px solid #E5E8EC"}}>
-                  <td style={{padding:"12px",fontSize:"13px",color:"#333D4B",fontWeight:bold?"bold":"normal"}}>{key}</td>
-                  <td style={{padding:"12px",fontSize:"13px",color:color||"#333D4B",fontWeight:bold?"bold":"normal"}}>{val}</td>
+                <tr key={key} style={{borderBottom:"1px solid #E5E8EC"}}>
+                  <td style={tdStyle(idx%2===0?"#F2F4F6":"#fff", null, bold)}>{key}</td>
+                  <td style={tdStyle(idx%2===0?"#F2F4F6":"#fff", color, bold)}>{val}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div style={{marginTop:"20px",padding:"16px 20px",background:"#fff",border:"1px solid #E5E8EC",borderRadius:"8px",margin:"20px 8px 0"}}>
+        <div style={{padding:"16px 20px",background:"#fff",border:"1px solid #E5E8EC",borderRadius:"8px",margin:"20px 8px 0"}}>
           {[
             ["전체 발송 성공 건수", fmt(s), null],
             ["오픈 수", fmt(r), `발송 성공 건수 대비 ${openRate}%`],
@@ -905,31 +1163,35 @@ function DropdownDetailTable({ id, title, data, tags }) {
 }
 
 /* ── KakaoExternalReport ── */
-function KakaoExternalReport({ id, title }) {
+function KakaoExternalReport({ id, title, onContextMenu }) {
   const [rawText, setRawText] = useState("");
   const [parsedData, setParsedData] = useState(null);
+  const [editCols, setEditCols] = useState(null); // 후수정용
 
   const handleParse = () => {
     if (!rawText.trim()) return;
     const columns = rawText.split('\t').map(s=>s.trim());
-    if (columns.length>=14) setParsedData(columns);
-    else alert("데이터 형식이 올바르지 않습니다.");
+    if (columns.length>=14) { setParsedData(columns); setEditCols([...columns]); }
+    else alert("데이터 형식이 올바르지 않습니다. 14개 이상의 탭 구분 컬럼이 필요합니다.");
   };
+
+  const headers = ["MID","저니명","버전","모듈","페일백 구분","발송시간",
+    {text:"대기중",color:"#F59E0B"},{text:"발송중",color:"#F59E0B"},
+    {text:"접수실패",color:"#EF4444"},{text:"친구톡 발송완료",color:"#10B981"},
+    {text:"페일백 발송완료",color:"#3B82F6"},{text:"발송실패",color:"#EF4444"},
+    {text:"실패코드",color:"#EF4444"},{text:"총 건수",color:"#8B5CF6"}];
+
+  const tdC = {padding:"10px 12px",fontSize:"12px",color:"#333D4B",
+    border:"1px solid #F2F4F6",textAlign:"center",
+    verticalAlign:"middle",whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"};
 
   return (
     <div style={{background:"#fff",padding:"24px",borderRadius:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:"24px"}}>
       <div className="summary-header" style={{marginBottom:"16px"}}>
         <h3 className="summary-title">{title}</h3>
-        {parsedData&&(
-          <button data-html2canvas-ignore="true" className="copy-btn" onClick={()=>downloadImage(id,'카카오톡_외부집계리포트')}
-            style={{display:"flex",alignItems:"center",gap:"4px",background:"#EEF2FF",color:"#4F46E5",border:"1px solid #C7D2FE"}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-            </svg>
-            이미지 저장 및 복사
-          </button>
-        )}
+        {parsedData && <span style={{fontSize:"11px",color:"#C4C9D0"}}>우클릭 → 이미지 저장/복사</span>}
       </div>
+
       {!parsedData ? (
         <div style={{display:"flex",gap:"8px"}}>
           <input type="text" value={rawText} onChange={e=>setRawText(e.target.value)}
@@ -939,36 +1201,95 @@ function KakaoExternalReport({ id, title }) {
           <button onClick={handleParse} className="analyze-btn" style={{padding:"10px 20px"}}>확인</button>
         </div>
       ) : (
-        <div id={id} style={{background:"#fff",padding:"16px",borderRadius:"12px"}}>
-          <div style={{overflow:"hidden",borderRadius:"8px",border:"1px solid #E5E8EC",marginBottom:"20px"}}>
-            <table className="stable" style={{margin:0,border:"none",whiteSpace:"nowrap"}}>
-              <thead>
-                <tr>
-                  {["MID","저니명","버전","모듈","페일백 구분","발송시간",
-                    <span style={{color:"#F59E0B"}}>대기중</span>,<span style={{color:"#F59E0B"}}>발송중</span>,
-                    <span style={{color:"#EF4444"}}>접수실패</span>,<span style={{color:"#10B981"}}>친구톡 발송완료</span>,
-                    <span style={{color:"#3B82F6"}}>페일백 발송완료</span>,<span style={{color:"#EF4444"}}>발송실패</span>,
-                    <span style={{color:"#EF4444"}}>실패코드</span>,<span style={{color:"#8B5CF6"}}>총 건수</span>
-                  ].map((h,i)=><th key={i}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>{parsedData.slice(0,14).map((col,i)=><td key={i} style={{fontWeight:(i===0||i>=9)?"bold":"normal"}}>{col}</td>)}</tr>
-              </tbody>
-            </table>
+        <div>
+          {/* 캡처 대상 영역 — 우클릭 */}
+          <div id={id} onContextMenu={onContextMenu} title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
+            style={{background:"#F9FAFB",padding:"20px",borderRadius:"12px",cursor:"context-menu"}}>
+            {/* 가로 스크롤 래퍼 (카드 안에서만 스크롤) */}
+            <div style={{overflowX:"auto",borderRadius:"8px",border:"1px solid #E5E8EC"}}>
+              <table style={{borderCollapse:"collapse",background:"#fff",minWidth:"900px",width:"100%"}}>
+                <thead>
+                  <tr>
+                    {headers.map((h,i)=>(
+                      <th key={i} style={{
+                        background:"#F9FAFB",padding:"10px 12px",fontSize:"11px",
+                        color: typeof h==="string"?"#8B95A1":h.color,
+                        border:"1px solid #F2F4F6",textAlign:"center",
+                        whiteSpace:"nowrap",verticalAlign:"middle",fontWeight:"600",
+                      }}>{typeof h==="string"?h:h.text}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    {editCols && editCols.slice(0,14).map((col,i)=>(
+                      <td key={i} style={{...tdC, fontWeight:(i===0||i>=9)?"bold":"normal", cursor:"text"}}
+                        onClick={e=>{
+                          const td=e.currentTarget;
+                          if(td.querySelector('input')) return;
+                          const cur=td.innerText.trim();
+                          const inp=document.createElement('input');
+                          inp.value=cur;
+                          inp.style.cssText="width:100%;min-width:60px;border:none;border-bottom:2px solid #333D4B;outline:none;background:transparent;font-family:inherit;font-size:12px;text-align:center;font-variant-numeric:tabular-nums;color:#333D4B;";
+                          td.innerHTML='';
+                          td.appendChild(inp);
+                          inp.focus(); inp.select();
+                          const commit=()=>{
+                            const nv=inp.value||cur;
+                            const nc=[...editCols]; nc[i]=nv; setEditCols(nc);
+                            td.innerHTML=nv;
+                          };
+                          inp.onblur=commit;
+                          inp.onkeydown=e2=>{if(e2.key==='Enter')inp.blur();if(e2.key==='Escape'){td.innerHTML=cur;}};
+                        }}>{col}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 요약 불릿 */}
+            {editCols && (
+              <ul style={{fontSize:"15px",color:"#333D4B",lineHeight:"1.8",margin:"16px 0 0",paddingLeft:"24px",listStyleType:"disc"}}>
+                <li><strong>전체 모수</strong>: {fmt(parseInt(editCols[13],10))}</li>
+                <li><strong>발송 성공</strong>: {fmt(parseInt(editCols[9],10))}</li>
+                <li><strong>발송 실패</strong>: {fmt(parseInt(editCols[11],10))}</li>
+              </ul>
+            )}
           </div>
-          <ul style={{fontSize:"15px",color:"#333D4B",lineHeight:"1.8",margin:0,paddingLeft:"24px",listStyleType:"disc"}}>
-            <li><strong>전체 모수</strong>: {fmt(parseInt(parsedData[13],10))}</li>
-            <li><strong>발송 성공</strong>: {fmt(parseInt(parsedData[9],10))}</li>
-            <li><strong>발송 실패</strong>: {fmt(parseInt(parsedData[11],10))}</li>
-          </ul>
-          <div data-html2canvas-ignore="true" style={{marginTop:"16px",textAlign:"right"}}>
-            <button className="retry-btn" onClick={()=>{setParsedData(null);setRawText("");}}>데이터 다시 입력</button>
+
+          <div data-html2canvas-ignore="true" style={{marginTop:"14px",textAlign:"right"}}>
+            <button className="retry-btn" onClick={()=>{setParsedData(null);setEditCols(null);setRawText("");}}>데이터 다시 입력</button>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+/* ── 범용 이미지 저장/복사 헬퍼 ── */
+function doSaveImage(elementId, filename, fixedWidth) {
+  captureElement(elementId, fixedWidth).then(canvas => {
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = filename + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+}
+function doCopyImage(elementId, fixedWidth) {
+  captureElement(elementId, fixedWidth).then(canvas => {
+    if (!canvas) return;
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item])
+          .then(() => alert('클립보드에 복사되었습니다!\n(Ctrl+V로 바로 붙여넣기 가능)'))
+          .catch(() => alert('브라우저 권한 문제로 클립보드 복사에 실패했습니다.'));
+      } catch(err) { console.error(err); }
+    }, 'image/png');
+  });
 }
 
 /* ── 우클릭 컨텍스트 메뉴 ── */
@@ -1016,40 +1337,16 @@ function App() {
   // 탭: 'edm' | 'kakao'
   const [activeTab, setActiveTab] = useState('edm');
 
-  // 우클릭 컨텍스트 메뉴
-  const [ctxMenu, setCtxMenu] = useState(null); // {x, y}
+  // 우클릭 컨텍스트 메뉴 (범용)
+  const [ctxMenu, setCtxMenu] = useState(null); // {x, y, elementId, filename, fixedWidth}
 
-  function openCtxMenu(e) {
-    e.preventDefault();
-    // 화면 경계 보정 (메뉴 너비 160px, 높이 ~90px)
-    const x = Math.min(e.clientX, window.innerWidth  - 172);
-    const y = Math.min(e.clientY, window.innerHeight - 100);
-    setCtxMenu({x, y});
-  }
-
-  function saveEdmImage() {
-    captureElement('main-report-capture').then(canvas => {
-      if (!canvas) return;
-      const link = document.createElement('a');
-      link.download = '성과분석리포트.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    });
-  }
-
-  function copyEdmImage() {
-    captureElement('main-report-capture').then(canvas => {
-      if (!canvas) return;
-      canvas.toBlob(blob => {
-        if (!blob) return;
-        try {
-          const item = new ClipboardItem({ 'image/png': blob });
-          navigator.clipboard.write([item])
-            .then(() => alert('클립보드에 복사되었습니다!\n(Ctrl+V로 바로 붙여넣기 가능)'))
-            .catch(() => alert('브라우저 권한 문제로 클립보드 복사에 실패했습니다.'));
-        } catch(err) { console.error(err); }
-      }, 'image/png');
-    });
+  function openCtxMenuFor(elementId, filename, fixedWidth) {
+    return (e) => {
+      e.preventDefault();
+      const x = Math.min(e.clientX, window.innerWidth  - 172);
+      const y = Math.min(e.clientY, window.innerHeight - 100);
+      setCtxMenu({x, y, elementId, filename, fixedWidth});
+    };
   }
 
   // eDM 상태
@@ -1059,6 +1356,7 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [edmInput,  setEdmInput]  = useState("");
   const [edmDrag,   setEdmDrag]   = useState(false);
+  const [sendTime,  setSendTime]  = useState("2026-05-06 4:00:00 PM");
 
   // CSV(카카오) 상태
   const [csvData,       setCsvData]       = useState(null);
@@ -1182,9 +1480,12 @@ function App() {
     const bHard=d.bounces?.hard||0; const bBlock=d.bounces?.block||0; const bSoft=d.bounces?.soft||0;
     const oUni=d.opens?.unique||0; const oTot=d.opens?.total||0;
     const cUni=d.clicks?.unique||0; const cTot=d.clicks?.total||0;
-    const vUni=d.conversions?.unique||d.conversions?.total||0; const uUni=d.unsubscribes?.unique||0;
+    const vUni=d.conversions?.unique||d.conversions?.total||0;
+    const vTot=d.conversions?.total||0;
+    const uUni=d.unsubscribes?.unique||0;
+    const convAmount=d.conversionAmount??null;
     const rate=(n,den,dec=2)=>den?((n/den)*100).toFixed(dec)+"%":(0).toFixed(dec)+"%";
-    return {totalSent,delivered,bTotal,bHard,bBlock,bSoft,oUni,oTot,cUni,cTot,vUni,uUni,rate};
+    return {totalSent,delivered,bTotal,bHard,bBlock,bSoft,oUni,oTot,cUni,cTot,vUni,vTot,uUni,convAmount,rate};
   };
   const s=getSummaryData();
 
@@ -1242,7 +1543,7 @@ function App() {
                   eDM 발송 결과 분석
                 </p>
                 <p style={{margin:"0 0 20px",fontSize:"14px",color:"#8B95A1",lineHeight:1.6}}>
-                  분석할 리포트 텍스트를 입력해 주세요. <span style={{color:"#C4C9D0"}}>(최대 3개까지 합쳐서 분석할 수 있어요.)</span>
+                  분석할 리포트 텍스트를 입력해 주세요. <span style={{color:"#C4C9D0"}}>(최대 3개 합산 가능)</span>
                 </p>
                 <textarea className="paste-textarea" value={edmInput} onChange={e=>setEdmInput(e.target.value)}
                   placeholder={"\n예시:\n\nName: Campaign ABC\nLast Published On: 2026-04-10\nTotal Sent: 65,246\nDelivery Rate: 99.635%"}
@@ -1301,7 +1602,7 @@ function App() {
                 {doneCount>0&&editData&&(
                   <>
                     <div id="main-report-capture"
-                      onContextMenu={openCtxMenu}
+                      onContextMenu={openCtxMenuFor('main-report-capture','성과분석리포트',960)}
                       title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
                       style={{padding:"16px",margin:"0 -16px",background:"#F2F4F6",borderRadius:"24px",cursor:"context-menu"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"}}>
@@ -1340,9 +1641,18 @@ function App() {
                           <span className="summary-title">발송 결과</span>
                           <button className="copy-btn" onClick={()=>copyTableToClipboard('table-send')}>표 복사하기</button>
                         </div>
-                        <table className="stable" id="table-send">
+                        <div style={{overflowX:"auto"}}>
+                        <table className="stable" id="table-send" style={{minWidth:"960px"}}>
                           <thead>
-                            <tr><th>대상수</th><th>건수</th><th>비율</th><th>성공</th><th>성공률</th><th>반송</th><th>반송률</th><th>소프트+블록</th><th>소프트+블록률</th><th>하드</th><th>하드률</th></tr>
+                            <tr>
+                              <th>대상수</th><th>건수</th><th>비율</th>
+                              <th>성공</th><th>성공률</th>
+                              <th>반송</th><th>반송률</th>
+                              <th>소프트+블록</th><th>소프트+블록률</th>
+                              <th>하드</th><th>하드률</th>
+                              <th>발송시각</th><th>상태</th>
+                              <th>전환수</th><th>전환매출</th>
+                            </tr>
                           </thead>
                           <tbody>
                             <tr>
@@ -1351,9 +1661,30 @@ function App() {
                               <td>{fmt(s.bTotal)}</td><td>{s.rate(s.bTotal,s.totalSent)}</td>
                               <td>{fmt(s.bSoft+s.bBlock)}</td><td>{s.rate(s.bSoft+s.bBlock,s.totalSent)}</td>
                               <td>{fmt(s.bHard)}</td><td>{s.rate(s.bHard,s.totalSent)}</td>
+                              <td style={{whiteSpace:"nowrap",minWidth:"160px",cursor:"text",position:"relative"}}
+                                onClick={e=>{
+                                  const td=e.currentTarget;
+                                  if(td.querySelector('input')) return;
+                                  const cur=td.innerText.trim();
+                                  const inp=document.createElement('input');
+                                  inp.value=cur;
+                                  inp.style.cssText="width:100%;border:none;border-bottom:2px solid #333D4B;outline:none;background:transparent;font-family:inherit;font-size:12px;text-align:center;font-variant-numeric:tabular-nums;color:#333D4B;";
+                                  td.innerHTML='';
+                                  td.appendChild(inp);
+                                  inp.focus(); inp.select();
+                                  const commit=()=>{ setSendTime(inp.value||cur); td.innerHTML=inp.value||cur; };
+                                  inp.onblur=commit;
+                                  inp.onkeydown=e2=>{if(e2.key==='Enter')inp.blur();if(e2.key==='Escape'){td.innerHTML=cur;setSendTime(cur);}};
+                                }}>
+                                {sendTime}
+                              </td>
+                              <td>캠페인 완료</td>
+                              <td>{fmt(s.vUni)}</td>
+                              <td>{s.convAmount!=null&&s.convAmount!==0 ? `₩ ${fmt(s.convAmount)}` : '₩ 0'}</td>
                             </tr>
                           </tbody>
                         </table>
+                        </div>
 
                         <div className="summary-header">
                           <span className="summary-title">반응 결과</span>
@@ -1379,7 +1710,7 @@ function App() {
                             <tr>
                               <td className="bg-light">전환</td>
                               <td>{fmt(s.vUni)}</td><td>{s.rate(s.vUni,s.delivered,3)}</td><td>{s.rate(s.vUni,s.oUni,3)}</td>
-                              <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+                              <td>{fmt(s.vTot)}</td><td>{s.rate(s.vTot,s.delivered,2)}</td><td>-</td><td>-</td><td>-</td><td>-</td>
                             </tr>
                             <tr>
                               <td className="bg-light">수신거부</td>
@@ -1416,7 +1747,7 @@ function App() {
                   알림톡·친구톡 발송 결과 분석
                 </p>
                 <p style={{margin:"0 0 20px",fontSize:"14px",color:"#8B95A1",lineHeight:1.6}}>
-                  CSV 파일을 업로드하거나 내용을 직접 붙여넣어 주세요.
+                  CSV 파일을 드래그 앤 드롭하세요. <span style={{color:"#C4C9D0"}}>(groupTag, date 컬럼 필수)</span>
                 </p>
                 <textarea className="paste-textarea" value={kakaoInput} onChange={e=>setKakaoInput(e.target.value)}
                   placeholder={"\n예시:\n\ngroupTag,date,successCount,validFailCount,readCount,button1,...\nAT,20260403,16,0,5,2,..."}
@@ -1449,9 +1780,11 @@ function App() {
                   onResetTags={()=>setSelectedTags2([])}/>
                 <DropdownDetailTable id="csv-table-3"
                   title={<><span style={{color:"#CA8A04"}}>KakaoTalk</span> 캠페인 API 집계 (1,2차 리포트용)</>}
-                  data={csvData.data} tags={tags3}/>
+                  data={csvData.data} tags={tags3}
+                  onContextMenu={openCtxMenuFor('kakao-report-capture','카카오톡_상세분석리포트',800)}/>
                 <KakaoExternalReport id="kakao-external-report"
-                  title={<><span style={{color:"#10B981"}}>KakaoTalk</span> CJ StatusBoard</>}/>
+                  title={<><span style={{color:"#10B981"}}>KakaoTalk</span> CJ StatusBoard</>}
+                  onContextMenu={openCtxMenuFor('kakao-external-report','카카오톡_외부집계리포트',960)}/>
               </>
             )}
           </div>
@@ -1463,8 +1796,8 @@ function App() {
       {ctxMenu && (
         <ContextMenu
           x={ctxMenu.x} y={ctxMenu.y}
-          onSave={saveEdmImage}
-          onCopy={copyEdmImage}
+          onSave={()=>doSaveImage(ctxMenu.elementId, ctxMenu.filename, ctxMenu.fixedWidth)}
+          onCopy={()=>doCopyImage(ctxMenu.elementId, ctxMenu.fixedWidth)}
           onClose={()=>setCtxMenu(null)}/>
       )}
     </div>
