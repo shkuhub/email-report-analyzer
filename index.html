@@ -199,7 +199,6 @@
       font-size: 28px; margin-bottom: 4px;
     }
 
-    /* 캡처 로딩 오버레이 */
     .capture-overlay {
       position: fixed; inset: 0; z-index: 99998;
       background: rgba(242,244,246,0.7); backdrop-filter: blur(4px);
@@ -227,24 +226,13 @@
 const { useState, useEffect, useRef, useCallback } = React;
 const MAX_SLOTS = 3;
 
-/* ══════════════════════════════════════════════
-   캡처 유틸 — html2canvas 기반으로 완전 교체
-   실제 화면에 렌더된 DOM을 그대로 캡처합니다.
-══════════════════════════════════════════════ */
-
-/**
- * 캡처 전 준비: [data-html2canvas-ignore] 요소 숨기기,
- * overflow 해제, 고정 너비 적용 → 캡처 → 원복
- */
 async function captureElementViaHtml2canvas(elementId) {
   const el = document.getElementById(elementId);
   if (!el) return null;
 
-  // 1) 캡처 제외 요소 숨기기
   const ignoreEls = Array.from(el.querySelectorAll('[data-html2canvas-ignore]'));
   ignoreEls.forEach(n => { n._origDisplay = n.style.display; n.style.display = 'none'; });
 
-  // 2) overflow 스크롤 노드 임시 해제 (잘림 방지)
   const scrollNodes = Array.from(el.querySelectorAll('*')).filter(n => {
     const cs = getComputedStyle(n);
     return cs.overflow === 'auto' || cs.overflow === 'scroll'
@@ -260,7 +248,6 @@ async function captureElementViaHtml2canvas(elementId) {
     n.style.overflowY = 'visible';
   });
 
-  // 3) 레이아웃 안정화 대기
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   const totalW = el.scrollWidth;
@@ -269,7 +256,7 @@ async function captureElementViaHtml2canvas(elementId) {
   let canvas = null;
   try {
     canvas = await html2canvas(el, {
-      scale: 2,                    // 레티나 해상도
+      scale: 2,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
@@ -288,7 +275,6 @@ async function captureElementViaHtml2canvas(elementId) {
     console.error('html2canvas error', e);
   }
 
-  // 4) 원복
   ignoreEls.forEach(n => { n.style.display = n._origDisplay || ''; });
   scrollNodes.forEach(n => {
     n.style.overflow  = n._origOF  || '';
@@ -299,7 +285,6 @@ async function captureElementViaHtml2canvas(elementId) {
   return canvas;
 }
 
-/* 저장 */
 async function doSaveImage(elementId, filename, setLoading) {
   setLoading(true);
   try {
@@ -314,7 +299,6 @@ async function doSaveImage(elementId, filename, setLoading) {
   }
 }
 
-/* 클립보드 복사 */
 async function doCopyImage(elementId, setLoading) {
   setLoading(true);
   try {
@@ -334,7 +318,6 @@ async function doCopyImage(elementId, setLoading) {
   }
 }
 
-/* ── CSV 파서 ── */
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return null;
@@ -357,7 +340,6 @@ function parseCSV(text) {
   return { type: 'CSV', data, tags: [...new Set(data.map(d => d.groupTag))] };
 }
 
-/* ── 리포트 합산 ── */
 function mergeReports(reports) {
   function sumNull(...vals) {
     const nums = vals.filter(v => v !== null && v !== undefined);
@@ -385,7 +367,6 @@ function mergeReports(reports) {
   };
 }
 
-/* ── 텍스트 파서 ── */
 function parseReport(rawText) {
   const t = rawText
     .replace(/\r\n/g,'\n').replace(/[\u00a0]+/g,' ')
@@ -459,7 +440,32 @@ function parseReport(rawText) {
   };
 }
 
-/* ── 유틸 ── */
+/* publishedOn 문자열 → "YYYY-MM-DD 4:00:00 PM" 형식 변환 */
+function publishedOnToSendTime(publishedOn) {
+  if (!publishedOn) return null;
+  const datePart = publishedOn.trim().split(" ")[0];
+  if (datePart.includes("-")) {
+    // 이미 YYYY-MM-DD 형식
+    const parts = datePart.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && parts[0] > 1000) {
+      return `${datePart} 4:00:00 PM`;
+    }
+  }
+  if (datePart.includes("/")) {
+    const parts = datePart.split("/").map(Number);
+    if (parts.length === 3) {
+      let d, m, y;
+      if (parts[2] > 1000) { [d, m, y] = parts; }
+      else { [m, d, y] = parts; }
+      if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+        const formatted = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        return `${formatted} 4:00:00 PM`;
+      }
+    }
+  }
+  return null;
+}
+
 function toKoreanDate(raw) {
   if (!raw) return null;
   const DAYS = ["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
@@ -488,7 +494,6 @@ function calcRate(num, den, decimals=2) {
   return ((num/den)*100).toFixed(decimals)+"%";
 }
 
-/* ── EditableNum ── */
 function EditableNum({ value, onSave, bold, faint, secTop }) {
   const [editing, setEditing] = React.useState(false);
   const [draft,   setDraft]   = React.useState("");
@@ -515,7 +520,6 @@ function EditableNum({ value, onSave, bold, faint, secTop }) {
   );
 }
 
-/* ── EditableConvNote ── */
 function EditableConvNote({ value, onSave }) {
   const [editing, setEditing] = React.useState(false);
   const [draft,   setDraft]   = React.useState("");
@@ -550,7 +554,6 @@ function EditableConvNote({ value, onSave }) {
   );
 }
 
-/* ── ReportTable ── */
 const DASH = <span className="faint">—</span>;
 function ReportTable({ data, onDataChange }) {
   const delivered    = data.delivered ?? data.totalSent;
@@ -694,7 +697,6 @@ function ReportTable({ data, onDataChange }) {
   );
 }
 
-/* ── SlotCard ── */
 function SlotCard({ slot, onRemove, showRaw, onToggleRaw, index }) {
   const d = slot.parsed;
   const dateStr = d?.publishedOn ? toKoreanDate(d.publishedOn) : null;
@@ -732,7 +734,6 @@ function SlotCard({ slot, onRemove, showRaw, onToggleRaw, index }) {
   );
 }
 
-/* ── PasteModal ── */
 function PasteModal({ onClose, onSubmit }) {
   const [text, setText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -777,7 +778,6 @@ function PasteModal({ onClose, onSubmit }) {
   );
 }
 
-/* ── CSVTable ── */
 function CSVTable({ id, title, data, tags, selectedTags, onTagToggle, onResetTags }) {
   const filteredData = data.filter(d => selectedTags.includes(d.groupTag));
   const aggregated = filteredData.reduce((acc, curr) => {
@@ -847,7 +847,6 @@ function CSVTable({ id, title, data, tags, selectedTags, onTagToggle, onResetTag
   );
 }
 
-/* ── DropdownDetailTable ── */
 function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
   const [selectedTag, setSelectedTag] = useState(tags[0]||"");
   const [startDate, setStartDate] = useState("");
@@ -911,7 +910,6 @@ function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
 
   return (
     <div style={{background:"#fff",padding:"24px",borderRadius:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:"24px"}}>
-      {/* 필터 컨트롤 — 캡처 제외 */}
       <div data-html2canvas-ignore="true" style={{background:"#FAFAFA",border:"1px solid #E5E8EC",borderRadius:"12px",padding:"18px",marginBottom:"20px",display:"flex",flexDirection:"column",gap:"14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
           <div style={{width:"70px",fontSize:"13px",fontWeight:"700",color:"#333D4B"}}>그룹 태그</div>
@@ -937,7 +935,6 @@ function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
         <span style={{fontSize:"11px",color:"#C4C9D0"}}>우클릭 → 이미지 저장/복사</span>
       </div>
 
-      {/* 캡처 대상 영역 */}
       <div id="kakao-report-capture"
         onContextMenu={onContextMenu}
         title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
@@ -991,7 +988,6 @@ function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
   );
 }
 
-/* ── KakaoExternalReport ── */
 function KakaoExternalReport({ id, title, onContextMenu }) {
   const [rawText, setRawText] = useState("");
   const [parsedData, setParsedData] = useState(null);
@@ -1093,7 +1089,6 @@ function KakaoExternalReport({ id, title, onContextMenu }) {
   );
 }
 
-/* ── 우클릭 컨텍스트 메뉴 ── */
 function ContextMenu({ x, y, onSave, onCopy, onClose }) {
   const menuRef = useRef();
   useEffect(() => {
@@ -1136,9 +1131,8 @@ function ContextMenu({ x, y, onSave, onCopy, onClose }) {
 /* ══════════════════ App ══════════════════ */
 function App() {
   const [activeTab, setActiveTab] = useState('edm');
-  const [isLoading, setIsLoading] = useState(false); // 캡처 로딩 상태
+  const [isLoading, setIsLoading] = useState(false);
 
-  /* 우클릭 컨텍스트 메뉴 */
   const [ctxMenu, setCtxMenu] = useState(null);
 
   function openCtxMenuFor(elementId, filename) {
@@ -1157,7 +1151,8 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [edmInput,  setEdmInput]  = useState("");
   const [edmDrag,   setEdmDrag]   = useState(false);
-  const [sendTime,  setSendTime]  = useState("2026-05-06 4:00:00 PM");
+  // ★ 변경: 하드코딩 제거, null로 초기화
+  const [sendTime,  setSendTime]  = useState(null);
 
   // CSV(카카오) 상태
   const [csvData,       setCsvData]       = useState(null);
@@ -1181,7 +1176,26 @@ function App() {
   /* ── eDM 핸들러 ── */
   function handleEdmSubmit(rawText) {
     const parsed = parseReport(rawText);
-    setSlots(prev=>[...prev,{id:Date.now()+Math.random(),rawText,parsed}]);
+
+    setSlots(prev => {
+      const next = [...prev, { id: Date.now() + Math.random(), rawText, parsed }];
+
+      // ★ 변경: 첫 번째 슬롯의 publishedOn 기준으로 발송시각 자동 설정
+      // 이미 사용자가 수동으로 수정한 경우(sendTime !== null)에는 덮어쓰지 않음
+      const firstParsedOn = next[0]?.parsed?.publishedOn;
+      if (firstParsedOn) {
+        setSendTime(cur => {
+          // cur가 null이면 자동 설정, 아니면 유지
+          if (cur === null) {
+            return publishedOnToSendTime(firstParsedOn) ?? cur;
+          }
+          return cur;
+        });
+      }
+
+      return next;
+    });
+
     setEdmInput("");
     setShowModal(false);
   }
@@ -1194,7 +1208,8 @@ function App() {
     reader.readAsText(file);
   }
 
-  function resetEdm() { setSlots([]); setEditData(null); setShowRawId(null); setEdmInput(""); }
+  // ★ 변경: resetEdm 시 sendTime도 null로 초기화
+  function resetEdm() { setSlots([]); setEditData(null); setShowRawId(null); setEdmInput(""); setSendTime(null); }
 
   /* ── 카카오 CSV 핸들러 ── */
   function handleKakaoSubmit(rawText) {
@@ -1298,11 +1313,9 @@ function App() {
 
   const emptyCount=MAX_SLOTS-slots.length-(canAddMore?1:0);
 
-  /* ══ 렌더 ══ */
   return (
     <div style={{minHeight:"100vh",background:"#F2F4F6"}}>
 
-      {/* 캡처 로딩 오버레이 */}
       {isLoading && (
         <div className="capture-overlay">
           <div className="capture-spinner">
@@ -1470,22 +1483,30 @@ function App() {
                               <td>{fmt(s.bTotal)}</td><td>{s.rate(s.bTotal,s.totalSent)}</td>
                               <td>{fmt(s.bSoft+s.bBlock)}</td><td>{s.rate(s.bSoft+s.bBlock,s.totalSent)}</td>
                               <td>{fmt(s.bHard)}</td><td>{s.rate(s.bHard,s.totalSent)}</td>
+                              {/* ★ 변경: sendTime이 null이면 "—" 표시, 클릭 시 수동 편집 가능 */}
                               <td style={{whiteSpace:"nowrap",minWidth:"160px",cursor:"text",position:"relative"}}
                                 onClick={e=>{
                                   const td=e.currentTarget;
                                   if(td.querySelector('input')) return;
                                   const cur=td.innerText.trim();
                                   const inp=document.createElement('input');
-                                  inp.value=cur;
+                                  inp.value=cur==="—"?"":cur;
                                   inp.style.cssText="width:100%;border:none;border-bottom:2px solid #333D4B;outline:none;background:transparent;font-family:inherit;font-size:12px;text-align:center;font-variant-numeric:tabular-nums;color:#333D4B;";
                                   td.innerHTML='';
                                   td.appendChild(inp);
                                   inp.focus(); inp.select();
-                                  const commit=()=>{ setSendTime(inp.value||cur); td.innerHTML=inp.value||cur; };
+                                  const commit=()=>{
+                                    const val = inp.value.trim();
+                                    setSendTime(val || null);
+                                    td.innerHTML = val || '—';
+                                  };
                                   inp.onblur=commit;
-                                  inp.onkeydown=e2=>{if(e2.key==='Enter')inp.blur();if(e2.key==='Escape'){td.innerHTML=cur;setSendTime(cur);}};
+                                  inp.onkeydown=e2=>{
+                                    if(e2.key==='Enter') inp.blur();
+                                    if(e2.key==='Escape') { td.innerHTML = sendTime ?? '—'; }
+                                  };
                                 }}>
-                                {sendTime}
+                                {sendTime ?? "—"}
                               </td>
                               <td>캠페인 완료</td>
                               <td>{fmt(s.vUni)}</td>
