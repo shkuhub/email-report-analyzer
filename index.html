@@ -15,7 +15,6 @@
     *, *::before, *::after { box-sizing: border-box; }
     body { margin: 0; background: #F2F4F6; font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; }
 
-    /* ── 탭 ── */
     .tab-bar {
       display: flex; gap: 0; background: #fff;
       border-bottom: 2px solid #E5E8EC;
@@ -55,7 +54,6 @@
       padding: 1px 6px; line-height: 1.6;
     }
 
-    /* ── 기존 테이블 스타일 ── */
     .rtable { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .rtable th {
       background: #F9FAFB; padding: 13px 16px; font-size: 12px;
@@ -185,14 +183,12 @@
     .tag-item { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; background: #fff; border: 1px solid #E5E8EC; font-size: 11px; cursor: pointer; transition: all 0.1s; }
     .tag-item.active { background: #333D4B; color: #fff; border-color: #333D4B; }
 
-    /* ── 탭 패널 전환 애니메이션 ── */
     .tab-panel { animation: fadeSlide 0.18s ease; }
     @keyframes fadeSlide {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ── 빈 상태 ── */
     .empty-state {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 60px 20px; text-align: center; gap: 12px;
@@ -202,6 +198,25 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 28px; margin-bottom: 4px;
     }
+
+    /* 캡처 로딩 오버레이 */
+    .capture-overlay {
+      position: fixed; inset: 0; z-index: 99998;
+      background: rgba(242,244,246,0.7); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .capture-spinner {
+      background: #fff; border-radius: 16px; padding: 24px 32px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      display: flex; align-items: center; gap: 14px;
+      font-size: 14px; font-weight: 600; color: #333D4B;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-icon {
+      width: 22px; height: 22px; border: 3px solid #E5E8EC;
+      border-top-color: #333D4B; border-radius: 50%;
+      animation: spin 0.7s linear infinite; flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -209,297 +224,115 @@
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 const MAX_SLOTS = 3;
 
-/* ── 이미지 캡처 (고정 너비, 페이지 크기 무관, 셀 세로 중앙 보장) ── */
-/* ── 테이블을 Canvas에 직접 그려서 이미지 생성 (수직 정렬 완벽 보장) ── */
-const captureElement = (elementId, fixedWidth = 960) => {
-  return new Promise((resolve) => {
-    const el = document.getElementById(elementId);
-    if (!el) { resolve(null); return; }
+/* ══════════════════════════════════════════════
+   캡처 유틸 — html2canvas 기반으로 완전 교체
+   실제 화면에 렌더된 DOM을 그대로 캡처합니다.
+══════════════════════════════════════════════ */
 
-    const SCALE   = 2;          // 레티나 해상도
-    const PAD     = 20;         // 캡처 영역 상하좌우 여백
-    const FONT    = 'Noto Sans KR, Apple SD Gothic Neo, sans-serif';
+/**
+ * 캡처 전 준비: [data-html2canvas-ignore] 요소 숨기기,
+ * overflow 해제, 고정 너비 적용 → 캡처 → 원복
+ */
+async function captureElementViaHtml2canvas(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return null;
 
-    // ── 1단계: 임시로 overflow 해제해 실제 크기 측정
-    const scrollEls = Array.from(el.querySelectorAll('*')).filter(n => {
-      const cs = getComputedStyle(n);
-      return cs.overflowX === 'auto' || cs.overflowX === 'scroll'
-          || cs.overflowY === 'auto' || cs.overflowY === 'scroll';
-    });
-    const scrollOrig = scrollEls.map(n => ({
-      ox: n.style.overflowX, oy: n.style.overflowY,
-      w:  n.style.width,     mw: n.style.maxWidth,
-    }));
-    scrollEls.forEach(n => {
-      n.style.overflowX = 'visible'; n.style.overflowY = 'visible';
-      n.style.width = 'auto'; n.style.maxWidth = 'none';
-    });
+  // 1) 캡처 제외 요소 숨기기
+  const ignoreEls = Array.from(el.querySelectorAll('[data-html2canvas-ignore]'));
+  ignoreEls.forEach(n => { n._origDisplay = n.style.display; n.style.display = 'none'; });
 
-    const savedStyle = { pos: el.style.position, left: el.style.left,
-      top: el.style.top, z: el.style.zIndex,
-      w: el.style.width, mw: el.style.minWidth, mx: el.style.maxWidth };
-    el.style.position = 'fixed'; el.style.left = '-99999px';
-    el.style.top = '0'; el.style.zIndex = '-1';
-    el.style.width = el.style.minWidth = el.style.maxWidth = fixedWidth + 'px';
-
-    // ── 2단계: 레이아웃 안정화 후 DOM 읽기
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-
-      // 테이블 찾기 — 여러 개면 첫 번째 우선, 없으면 html2canvas 폴백
-      const tables = Array.from(el.querySelectorAll('table'));
-      if (tables.length === 0) {
-        // 폴백: 테이블 없는 영역은 html2canvas 사용
-        const aw = Math.max(fixedWidth, el.scrollWidth + 32);
-        el.style.width = el.style.minWidth = el.style.maxWidth = aw + 'px';
-        window.html2canvas(el, { scale: SCALE, backgroundColor:'#fff', width: aw, windowWidth: aw, useCORS:true, logging:false })
-          .then(canvas => {
-            // 원복
-            scrollEls.forEach((n,i) => { n.style.overflowX=scrollOrig[i].ox; n.style.overflowY=scrollOrig[i].oy; n.style.width=scrollOrig[i].w; n.style.maxWidth=scrollOrig[i].mw; });
-            Object.assign(el.style, { position:savedStyle.pos, left:savedStyle.left, top:savedStyle.top, zIndex:savedStyle.z, width:savedStyle.w, minWidth:savedStyle.mw, maxWidth:savedStyle.mx });
-            resolve(canvas);
-          });
-        return;
-      }
-
-      // ── 3단계: 모든 테이블의 셀 데이터 수집
-      const CELL_PAD_V = 11;  // 셀 상하 내부 패딩 (픽셀)
-      const CELL_PAD_H = 14;  // 셀 좌우 내부 패딩 (픽셀)
-      const ROW_H_MIN  = 38;  // 최소 행 높이 (픽셀)
-
-      // 배경색 추출 헬퍼
-      function getBg(cell) {
-        let n = cell;
-        while (n && n !== el) {
-          const bg = getComputedStyle(n).backgroundColor;
-          if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg;
-          n = n.parentElement;
-        }
-        return '#ffffff';
-      }
-
-      // 셀 구조 수집: [{text, color, bg, bold, fontSize, align, colSpan, rowSpan}]
-      function collectTableData(table) {
-        const tRows = Array.from(table.querySelectorAll('tr'));
-        // 병합 셀 처리를 위한 그리드
-        const grid = [];
-        tRows.forEach((tr, ri) => {
-          if (!grid[ri]) grid[ri] = [];
-          let ci = 0;
-          Array.from(tr.querySelectorAll('td, th')).forEach(cell => {
-            while (grid[ri][ci]) ci++;
-            const cs       = getComputedStyle(cell);
-            const colSpan  = cell.colSpan  || 1;
-            const rowSpan  = cell.rowSpan  || 1;
-            const text     = cell.innerText.trim();
-            const color    = cs.color || '#333D4B';
-            const bg       = getBg(cell);
-            const bold     = parseInt(cs.fontWeight) >= 600;
-            const fontSize = Math.round(parseFloat(cs.fontSize) || 13);
-            const align    = cs.textAlign === 'left' ? 'left' : 'center';
-            const info     = { text, color, bg, bold, fontSize, align, colSpan, rowSpan };
-            for (let r = ri; r < ri + rowSpan; r++) {
-              if (!grid[r]) grid[r] = [];
-              for (let c = ci; c < ci + colSpan; c++) {
-                grid[r][c] = (r === ri && c === ci) ? info : null; // null = merged
-              }
-            }
-            ci += colSpan;
-          });
-        });
-        return grid;
-      }
-
-      // 캔버스 크기 계산
-      const allGrids = tables.map(collectTableData);
-
-      // 열 너비 계산: 각 테이블별로 독립
-      function calcColWidths(grid, availW) {
-        const numCols = Math.max(...grid.map(r => r.length));
-        // 동일 너비 배분
-        const base = Math.floor(availW / numCols);
-        return Array(numCols).fill(base);
-      }
-
-      // 행 높이 계산
-      function calcRowHeights(grid) {
-        return grid.map(row => {
-          let maxLines = 1;
-          row.forEach(cell => {
-            if (!cell) return;
-            const lines = cell.text.split('\n').length;
-            maxLines = Math.max(maxLines, lines);
-          });
-          return Math.max(ROW_H_MIN, maxLines * (13 + 4) + CELL_PAD_V * 2);
-        });
-      }
-
-      const innerW = Math.max(fixedWidth, tables[0].scrollWidth) - PAD * 2;
-
-      // 각 테이블 레이아웃 계산
-      const layouts = allGrids.map((grid, ti) => {
-        const colW = calcColWidths(grid, innerW);
-        const rowH = calcRowHeights(grid);
-        const totalW = colW.reduce((a,b)=>a+b,0);
-        const totalH = rowH.reduce((a,b)=>a+b,0);
-        return { grid, colW, rowH, totalW, totalH };
-      });
-
-      // 비-테이블 텍스트 높이 계산 (요약 불릿 등)
-      function collectNonTableNodes(rootEl, tables) {
-        const tableSet = new Set(tables);
-        const result = [];
-        function walk(node) {
-          if (tableSet.has(node)) return;
-          if (node.nodeType === 3 && node.textContent.trim()) {
-            // 텍스트 노드는 무시 (부모에서 처리)
-          } else if (node.nodeType === 1) {
-            const tag = node.tagName.toLowerCase();
-            if (['li','p','div','h1','h2','h3','h4','h5','h6'].includes(tag)) {
-              const txt = node.innerText?.trim();
-              if (txt) {
-                const cs = getComputedStyle(node);
-                result.push({ text: txt, fontSize: parseFloat(cs.fontSize)||13,
-                  bold: parseInt(cs.fontWeight)>=600, color: cs.color||'#333D4B' });
-                return;
-              }
-            }
-            Array.from(node.childNodes).forEach(walk);
-          }
-        }
-        Array.from(rootEl.childNodes).forEach(walk);
-        return result;
-      }
-
-      const extraNodes = collectNonTableNodes(el, tables);
-      const EXTRA_LINE_H = 24;
-      const extraH = extraNodes.length > 0 ? extraNodes.length * EXTRA_LINE_H + 16 : 0;
-
-      const totalH = layouts.reduce((s,l)=>s+l.totalH+16,0) + extraH + PAD*2;
-      const totalW = Math.max(...layouts.map(l=>l.totalW)) + PAD*2;
-
-      // ── 4단계: Canvas에 직접 그리기
-      const cvs = document.createElement('canvas');
-      cvs.width  = totalW  * SCALE;
-      cvs.height = totalH  * SCALE;
-      const ctx  = cvs.getContext('2d');
-      ctx.scale(SCALE, SCALE);
-
-      // 배경
-      ctx.fillStyle = '#F9FAFB';
-      ctx.fillRect(0, 0, totalW, totalH);
-
-      let curY = PAD;
-
-      layouts.forEach(({ grid, colW, rowH, totalW: tW }, ti) => {
-        const startX = PAD;
-        // 각 셀 그리기
-        const rowStartY = [];
-        let ry = curY;
-        rowH.forEach((h,i) => { rowStartY[i]=ry; ry+=h; });
-
-        // 셀 배경 + 텍스트
-        grid.forEach((row, ri) => {
-          let cx = startX;
-          row.forEach((cell, ci) => {
-            const cw = colW[ci] || 0;
-            if (cell === null) { cx+=cw; return; } // 병합된 서브셀
-            // 병합 너비
-            let spanW = 0;
-            for (let s=0; s<cell.colSpan; s++) spanW += colW[ci+s] || cw;
-            // 병합 높이
-            let spanH = 0;
-            for (let s=0; s<cell.rowSpan; s++) spanH += rowH[ri+s] || rowH[ri];
-
-            // 배경
-            ctx.fillStyle = cell.bg;
-            ctx.fillRect(cx, rowStartY[ri], spanW, spanH);
-
-            // 구분선
-            ctx.strokeStyle = '#E5E8EC';
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(cx + 0.25, rowStartY[ri] + 0.25, spanW - 0.5, spanH - 0.5);
-
-            // 텍스트
-            const fontSize = cell.fontSize;
-            ctx.font = `${cell.bold?'700':'400'} ${fontSize}px ${FONT}`;
-            ctx.fillStyle = cell.color;
-            ctx.textBaseline = 'middle';
-
-            const lines = cell.text.split('\n').filter(l=>l.trim());
-            const lineH  = fontSize + 4;
-            const totalTextH = lines.length * lineH;
-            const textStartY = rowStartY[ri] + spanH/2 - totalTextH/2 + lineH/2;
-
-            lines.forEach((line, li) => {
-              const ty = textStartY + li * lineH;
-              if (cell.align === 'left') {
-                ctx.textAlign = 'left';
-                ctx.fillText(line, cx + CELL_PAD_H, ty);
-              } else {
-                ctx.textAlign = 'center';
-                ctx.fillText(line, cx + spanW/2, ty);
-              }
-            });
-
-            cx += cw;
-          });
-        });
-
-        curY += rowH.reduce((a,b)=>a+b,0) + 16;
-      });
-
-      // 추가 텍스트 (요약 불릿 등)
-      if (extraNodes.length > 0) {
-        curY += 4;
-        extraNodes.forEach(node => {
-          ctx.font = `${node.bold?'700':'400'} ${node.fontSize}px ${FONT}`;
-          ctx.fillStyle = node.color;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('• ' + node.text, PAD + 8, curY + EXTRA_LINE_H/2);
-          curY += EXTRA_LINE_H;
-        });
-      }
-
-      // ── 5단계: 원복
-      scrollEls.forEach((n,i) => {
-        n.style.overflowX = scrollOrig[i].ox; n.style.overflowY = scrollOrig[i].oy;
-        n.style.width = scrollOrig[i].w; n.style.maxWidth = scrollOrig[i].mw;
-      });
-      Object.assign(el.style, {
-        position: savedStyle.pos, left: savedStyle.left, top: savedStyle.top,
-        zIndex: savedStyle.z, width: savedStyle.w, minWidth: savedStyle.mw, maxWidth: savedStyle.mx,
-      });
-
-      resolve(cvs);
-    }));
+  // 2) overflow 스크롤 노드 임시 해제 (잘림 방지)
+  const scrollNodes = Array.from(el.querySelectorAll('*')).filter(n => {
+    const cs = getComputedStyle(n);
+    return cs.overflow === 'auto' || cs.overflow === 'scroll'
+        || cs.overflowX === 'auto' || cs.overflowX === 'scroll'
+        || cs.overflowY === 'auto' || cs.overflowY === 'scroll';
   });
-};
+  scrollNodes.forEach(n => {
+    n._origOF = n.style.overflow;
+    n._origOFX = n.style.overflowX;
+    n._origOFY = n.style.overflowY;
+    n.style.overflow = 'visible';
+    n.style.overflowX = 'visible';
+    n.style.overflowY = 'visible';
+  });
 
-const downloadImage = (elementId, filename) => {
-  captureElement(elementId).then(canvas => {
+  // 3) 레이아웃 안정화 대기
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  const totalW = el.scrollWidth;
+  const totalH = el.scrollHeight;
+
+  let canvas = null;
+  try {
+    canvas = await html2canvas(el, {
+      scale: 2,                    // 레티나 해상도
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: totalW,
+      height: totalH,
+      windowWidth: totalW,
+      windowHeight: totalH,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      allowTaint: true,
+      foreignObjectRendering: false,
+    });
+  } catch(e) {
+    console.error('html2canvas error', e);
+  }
+
+  // 4) 원복
+  ignoreEls.forEach(n => { n.style.display = n._origDisplay || ''; });
+  scrollNodes.forEach(n => {
+    n.style.overflow  = n._origOF  || '';
+    n.style.overflowX = n._origOFX || '';
+    n.style.overflowY = n._origOFY || '';
+  });
+
+  return canvas;
+}
+
+/* 저장 */
+async function doSaveImage(elementId, filename, setLoading) {
+  setLoading(true);
+  try {
+    const canvas = await captureElementViaHtml2canvas(elementId);
     if (!canvas) return;
     const link = document.createElement('a');
     link.download = filename + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
+  } finally {
+    setLoading(false);
+  }
+}
+
+/* 클립보드 복사 */
+async function doCopyImage(elementId, setLoading) {
+  setLoading(true);
+  try {
+    const canvas = await captureElementViaHtml2canvas(elementId);
+    if (!canvas) return;
     canvas.toBlob(blob => {
-      if (blob) {
-        try {
-          const item = new ClipboardItem({ 'image/png': blob });
-          navigator.clipboard.write([item]).then(() => {
-            alert('이미지 저장 완료! 클립보드에도 복사되었습니다.\n(Ctrl+V로 바로 붙여넣기 가능)');
-          }).catch(() => {
-            alert('이미지는 저장되었으나, 브라우저 권한 문제로 클립보드 복사는 실패했습니다.');
-          });
-        } catch (err) { console.error(err); }
-      }
+      if (!blob) return;
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item])
+          .then(() => alert('클립보드에 복사되었습니다!\n(Ctrl+V로 바로 붙여넣기 가능)'))
+          .catch(() => alert('브라우저 권한 문제로 클립보드 복사에 실패했습니다.\n이미지는 자동 다운로드됩니다.'));
+      } catch(err) { console.error(err); }
     }, 'image/png');
-  });
-};
+  } finally {
+    setLoading(false);
+  }
+}
 
 /* ── CSV 파서 ── */
 function parseCSV(text) {
@@ -740,7 +573,6 @@ function ReportTable({ data, onDataChange }) {
     onDataChange(next);
   }
   function updateMulti(pairs) {
-    // pairs: [[path, val], ...]
     const next=JSON.parse(JSON.stringify(data));
     pairs.forEach(([path,val])=>{
       const keys=path.split(".");
@@ -820,12 +652,10 @@ function ReportTable({ data, onDataChange }) {
           <tr>
             <Lbl>전환 (Conversions)</Lbl>
             <EN value={data.conversions?.total} bold onSave={v=>{
-              // 전체수 저장 → 고유수가 비어있으면 함께 채움
               if(data.conversions?.unique==null) updateMulti([["conversions.total",v],["conversions.unique",v]]);
               else update("conversions.total",v);
             }}/>
             <EN value={data.conversions?.unique??data.conversions?.total} bold onSave={v=>{
-              // 고유수 저장 → 전체수가 비어있으면 함께 채움
               if(data.conversions?.total==null) updateMulti([["conversions.unique",v],["conversions.total",v]]);
               else update("conversions.unique",v);
             }}/>
@@ -1102,7 +932,6 @@ function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
         </div>
       </div>
 
-      {/* 헤더 — 버튼 제거, 우클릭 힌트만 */}
       <div className="summary-header" style={{marginBottom:"16px"}}>
         <h3 className="summary-title">{title}</h3>
         <span style={{fontSize:"11px",color:"#C4C9D0"}}>우클릭 → 이미지 저장/복사</span>
@@ -1166,7 +995,7 @@ function DropdownDetailTable({ id, title, data, tags, onContextMenu }) {
 function KakaoExternalReport({ id, title, onContextMenu }) {
   const [rawText, setRawText] = useState("");
   const [parsedData, setParsedData] = useState(null);
-  const [editCols, setEditCols] = useState(null); // 후수정용
+  const [editCols, setEditCols] = useState(null);
 
   const handleParse = () => {
     if (!rawText.trim()) return;
@@ -1202,10 +1031,8 @@ function KakaoExternalReport({ id, title, onContextMenu }) {
         </div>
       ) : (
         <div>
-          {/* 캡처 대상 영역 — 우클릭 */}
           <div id={id} onContextMenu={onContextMenu} title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
             style={{background:"#F9FAFB",padding:"20px",borderRadius:"12px",cursor:"context-menu"}}>
-            {/* 가로 스크롤 래퍼 (카드 안에서만 스크롤) */}
             <div style={{overflowX:"auto",borderRadius:"8px",border:"1px solid #E5E8EC"}}>
               <table style={{borderCollapse:"collapse",background:"#fff",minWidth:"900px",width:"100%"}}>
                 <thead>
@@ -1248,7 +1075,6 @@ function KakaoExternalReport({ id, title, onContextMenu }) {
               </table>
             </div>
 
-            {/* 요약 불릿 */}
             {editCols && (
               <ul style={{fontSize:"15px",color:"#333D4B",lineHeight:"1.8",margin:"16px 0 0",paddingLeft:"24px",listStyleType:"disc"}}>
                 <li><strong>전체 모수</strong>: {fmt(parseInt(editCols[13],10))}</li>
@@ -1265,31 +1091,6 @@ function KakaoExternalReport({ id, title, onContextMenu }) {
       )}
     </div>
   );
-}
-
-/* ── 범용 이미지 저장/복사 헬퍼 ── */
-function doSaveImage(elementId, filename, fixedWidth) {
-  captureElement(elementId, fixedWidth).then(canvas => {
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = filename + '.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
-}
-function doCopyImage(elementId, fixedWidth) {
-  captureElement(elementId, fixedWidth).then(canvas => {
-    if (!canvas) return;
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      try {
-        const item = new ClipboardItem({ 'image/png': blob });
-        navigator.clipboard.write([item])
-          .then(() => alert('클립보드에 복사되었습니다!\n(Ctrl+V로 바로 붙여넣기 가능)'))
-          .catch(() => alert('브라우저 권한 문제로 클립보드 복사에 실패했습니다.'));
-      } catch(err) { console.error(err); }
-    }, 'image/png');
-  });
 }
 
 /* ── 우클릭 컨텍스트 메뉴 ── */
@@ -1334,18 +1135,18 @@ function ContextMenu({ x, y, onSave, onCopy, onClose }) {
 
 /* ══════════════════ App ══════════════════ */
 function App() {
-  // 탭: 'edm' | 'kakao'
   const [activeTab, setActiveTab] = useState('edm');
+  const [isLoading, setIsLoading] = useState(false); // 캡처 로딩 상태
 
-  // 우클릭 컨텍스트 메뉴 (범용)
-  const [ctxMenu, setCtxMenu] = useState(null); // {x, y, elementId, filename, fixedWidth}
+  /* 우클릭 컨텍스트 메뉴 */
+  const [ctxMenu, setCtxMenu] = useState(null);
 
-  function openCtxMenuFor(elementId, filename, fixedWidth) {
+  function openCtxMenuFor(elementId, filename) {
     return (e) => {
       e.preventDefault();
       const x = Math.min(e.clientX, window.innerWidth  - 172);
       const y = Math.min(e.clientY, window.innerHeight - 100);
-      setCtxMenu({x, y, elementId, filename, fixedWidth});
+      setCtxMenu({ x, y, elementId, filename });
     };
   }
 
@@ -1501,6 +1302,16 @@ function App() {
   return (
     <div style={{minHeight:"100vh",background:"#F2F4F6"}}>
 
+      {/* 캡처 로딩 오버레이 */}
+      {isLoading && (
+        <div className="capture-overlay">
+          <div className="capture-spinner">
+            <div className="spinner-icon"/>
+            이미지 생성 중...
+          </div>
+        </div>
+      )}
+
       {/* ── 탭 바 ── */}
       <div className="tab-bar">
         <div className="tab-logo">📊 GP 리포트 분석기</div>
@@ -1527,7 +1338,6 @@ function App() {
         {activeTab==='edm' && (
           <div className="tab-panel">
 
-            {/* 입력 영역: 슬롯 없을 때 */}
             {slots.length===0 && (
               <div
                 style={{
@@ -1556,7 +1366,6 @@ function App() {
               </div>
             )}
 
-            {/* 슬롯 있을 때 */}
             {slots.length>0 && (
               <>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}>
@@ -1602,7 +1411,7 @@ function App() {
                 {doneCount>0&&editData&&(
                   <>
                     <div id="main-report-capture"
-                      onContextMenu={openCtxMenuFor('main-report-capture','성과분석리포트',960)}
+                      onContextMenu={openCtxMenuFor('main-report-capture','성과분석리포트')}
                       title="우클릭하면 이미지 저장/복사 메뉴가 나타납니다"
                       style={{padding:"16px",margin:"0 -16px",background:"#F2F4F6",borderRadius:"24px",cursor:"context-menu"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"}}>
@@ -1732,7 +1541,6 @@ function App() {
         {activeTab==='kakao' && (
           <div className="tab-panel">
 
-            {/* CSV 없을 때: 입력 */}
             {!csvData && (
               <div
                 style={{
@@ -1760,7 +1568,6 @@ function App() {
               </div>
             )}
 
-            {/* CSV 있을 때: 분석 결과 */}
             {csvData && (
               <>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px"}}>
@@ -1781,10 +1588,10 @@ function App() {
                 <DropdownDetailTable id="csv-table-3"
                   title={<><span style={{color:"#CA8A04"}}>KakaoTalk</span> 캠페인 API 집계 (1,2차 리포트용)</>}
                   data={csvData.data} tags={tags3}
-                  onContextMenu={openCtxMenuFor('kakao-report-capture','카카오톡_상세분석리포트',800)}/>
+                  onContextMenu={openCtxMenuFor('kakao-report-capture','카카오톡_상세분석리포트')}/>
                 <KakaoExternalReport id="kakao-external-report"
                   title={<><span style={{color:"#10B981"}}>KakaoTalk</span> CJ StatusBoard</>}
-                  onContextMenu={openCtxMenuFor('kakao-external-report','카카오톡_외부집계리포트',960)}/>
+                  onContextMenu={openCtxMenuFor('kakao-external-report','카카오톡_외부집계리포트')}/>
               </>
             )}
           </div>
@@ -1793,11 +1600,12 @@ function App() {
       </div>
 
       {showModal && <PasteModal onClose={()=>setShowModal(false)} onSubmit={handleEdmSubmit}/>}
+
       {ctxMenu && (
         <ContextMenu
           x={ctxMenu.x} y={ctxMenu.y}
-          onSave={()=>doSaveImage(ctxMenu.elementId, ctxMenu.filename, ctxMenu.fixedWidth)}
-          onCopy={()=>doCopyImage(ctxMenu.elementId, ctxMenu.fixedWidth)}
+          onSave={()=>doSaveImage(ctxMenu.elementId, ctxMenu.filename, setIsLoading)}
+          onCopy={()=>doCopyImage(ctxMenu.elementId, setIsLoading)}
           onClose={()=>setCtxMenu(null)}/>
       )}
     </div>
